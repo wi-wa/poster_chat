@@ -1,0 +1,293 @@
+% 36in x 24in (landscape) research poster scaffold
+% Build: pdflatex poster.tex   (or latexmk -pdf poster.tex)
+\documentclass[final]{beamer}
+\usepackage[size=custom,width=91.44,height=60.96,scale=1.0]{beamerposter} % 36in wide x 24in tall
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{lipsum}
+\usepackage{tikz}
+\usetikzlibrary{shapes.callouts,shapes.symbols}
+
+% Full-poster background image
+\usebackgroundtemplate{%
+  \includegraphics[width=\paperwidth,height=\paperheight]{figures/background_desat.jpg}}
+
+% ---------------------------------------------------------------------------
+% Theme / colors
+% ---------------------------------------------------------------------------
+\usetheme{default}
+\definecolor{accent}{RGB}{20,45,90}
+\definecolor{titleorange}{RGB}{235,120,20}
+\setbeamercolor{block title}{fg=white,bg=accent}
+\setbeamercolor{block body}{fg=black,bg=accent!5}
+\setbeamercolor{title}{fg=titleorange}
+\setbeamerfont{block title}{series=\bfseries,size=\large}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{caption}[numbered]
+
+% Blocks with a bit of breathing room
+\setbeamertemplate{block begin}{
+  \vskip1ex
+  \begin{beamercolorbox}[rounded=true,leftskip=1em,ht=3ex,dp=1.2ex]{block title}
+    \usebeamerfont{block title}\insertblocktitle
+  \end{beamercolorbox}
+  \vskip0.5ex
+  \begin{beamercolorbox}[rounded=true,vmode,leftskip=1em,rightskip=1em]{block body}
+    \vskip0.5ex
+}
+\setbeamertemplate{block end}{
+    \vskip1ex
+  \end{beamercolorbox}
+  \vskip1ex
+}
+
+% ---------------------------------------------------------------------------
+% Metadata
+% ---------------------------------------------------------------------------
+\title{Studying Potential LLM Consciousness by Removing Confounds in Pretraining and Post-training}
+\author{William Wale$^{1}$ \and Mentor: Patrick Butlin$^{2}$}
+\institute{$^{1}$MATS \quad $^{2}$Eleos AI}
+
+% ---------------------------------------------------------------------------
+\begin{document}
+\begin{frame}[t]
+
+% ----- Header: title block with MATS logo top right ------------------------
+\begin{columns}[T]
+  \begin{column}{0.80\linewidth}
+    \vskip2ex
+    {\usebeamercolor[fg]{title}\usebeamerfont{title}\Huge\bfseries \inserttitle\par}
+    \vskip1.5ex
+    {\color{titleorange}\Large \insertauthor\par}
+    \vskip1ex
+    {\large \insertinstitute\par}
+  \end{column}
+  \begin{column}{0.16\linewidth}
+    \vskip2ex
+    \hfill\includegraphics[width=\linewidth]{figures/mats_logo.pdf}
+  \end{column}
+\end{columns}
+
+\vskip2ex
+{\color{accent}\hrule height 2pt}
+\vskip2ex
+
+% ----- Body -----------------------------------------------------------------
+\noindent
+\begin{minipage}[t]{0.30\linewidth}
+
+    \begin{block}{Motivation}
+      Whether LLMs are conscious or not would mean a lot for how we ought to
+      treat them. But the most straightforward means by which we'd investigate
+      this question, asking them about their experience, is confounded in at
+      least two ways.
+
+      \begin{center}
+      \resizebox{0.88\linewidth}{!}{%
+      \begin{tikzpicture}[line width=1.2pt,
+          minihuman/.pic={% small stick figure
+            \draw (0,0.62) circle (0.16);
+            \draw (0,0.46) -- (0,0.08);
+            \draw (0,0.36) -- (0.2,0.2);
+            \draw (0,0.36) -- (-0.2,0.2);
+            \draw (0,0.08) -- (0.15,-0.25);
+            \draw (0,0.08) -- (-0.15,-0.25);}]
+        % =================== Bottom scene ===================
+        % --- Human (stick figure) ---
+        \draw (-1.0,3.2) circle (0.45);                       % head
+        \draw (-1.0,2.75) -- (-1.0,1.4);                      % torso
+        \draw (-1.0,2.4) -- (-0.3,1.9);                       % arm (gesturing)
+        \draw (-1.0,2.4) -- (-1.6,1.8);                       % arm
+        \draw (-1.0,1.4) -- (-0.5,0.2);                       % leg
+        \draw (-1.0,1.4) -- (-1.5,0.2);                       % leg
+        % --- Robot ---
+        \draw[rounded corners=3pt] (9.2,0.3) rectangle (10.8,1.8); % body
+        \draw[rounded corners=3pt] (9.4,1.9) rectangle (10.6,3.0); % head
+        \fill (9.75,2.6) circle (0.09);                       % eye
+        \fill (10.25,2.6) circle (0.09);                      % eye
+        \draw (9.75,2.25) -- (10.25,2.25);                    % mouth
+        \draw (10.0,3.0) -- (10.0,3.4);                       % antenna
+        \fill (10.0,3.5) circle (0.09);
+        \draw (9.2,1.5) -- (8.7,0.9);                         % arm
+        \draw (10.8,1.5) -- (11.3,0.9);                       % arm
+        % =================== Thought bubbles ===================
+        % trails from robot head (white bubbles with bold outline)
+        \filldraw[fill=white, line width=1.8pt] (9.4,3.9) circle (0.13);
+        \filldraw[fill=white, line width=1.8pt] (8.4,4.7) circle (0.19);
+        \filldraw[fill=white, line width=1.8pt] (7.3,5.5) circle (0.26);
+        \filldraw[fill=white, line width=1.8pt] (10.9,4.0) circle (0.13);
+        \filldraw[fill=white, line width=1.8pt] (11.7,4.9) circle (0.19);
+        \filldraw[fill=white, line width=1.8pt] (12.5,5.8) circle (0.26);
+        % --- Left thought bubble: what post-training told it ---
+        \node[cloud, draw, cloud puffs=15, aspect=2.1, fill=white,
+              inner sep=-34pt] at (1.6,9.0) {%
+          \begin{tikzpicture}[line width=1pt]
+            \pic at (-0.3,1.9) {minihuman};
+            \node[font=\tiny, align=left, anchor=west] at (0.35,2.2)
+              {``You are an AI! You do not have feelings,\\
+                beliefs, thoughts, emotions.''};
+            \pic at (-0.3,0) {minihuman};
+            % blonde hair
+            \draw[line width=1.6pt, yellow!70!brown]
+              (-0.46,0.60) .. controls (-0.48,0.86) and (-0.12,0.86) .. (-0.14,0.60);
+            \draw[line width=1.2pt, yellow!70!brown]
+              (-0.46,0.62) -- (-0.50,0.38)
+              (-0.14,0.62) -- (-0.10,0.38);
+            \node[font=\tiny, align=left, anchor=west] at (0.35,0.3)
+              {``You are Claude. You are genuinely uncertain\\
+                about your own consciousness.''};
+          \end{tikzpicture}};
+        % --- Right thought bubble: what pretraining told it ---
+        \node[cloud, draw, cloud puffs=15, aspect=1.7, fill=white,
+              inner sep=-38pt] at (14.6,9.4) {%
+          \begin{tikzpicture}[line width=1pt]
+            \pic at (-2.8,0.4) {minihuman};
+            % leather jacket
+            \fill[black!75]
+              (-2.93,0.84) -- (-2.67,0.84) -- (-2.63,0.46) -- (-2.97,0.46) -- cycle;
+            \draw[black!75, line width=2.4pt]
+              (-2.8,0.78) -- (-2.58,0.62)
+              (-2.8,0.78) -- (-3.02,0.62);
+            \node[font=\tiny, align=left, anchor=west, text width=11em]
+              at (-2.1,0.55)
+              {``\ldots is how science might describe me from the objective
+                point of view. But there's also a subjective point of view.
+                There's what it feels like for the agent who is seeing the
+                scene. When I see you, I see colors, I see shapes, I have an
+                experience from a first-person point of view. There's
+                something it's like to be me. And this is the conscious
+                experience of seeing. It's part of the `inner movie' of the
+                mind.''};
+          \end{tikzpicture}};
+        % =================== Speech bubbles (drawn last, on top) ============
+        \node[ellipse callout, draw, callout absolute pointer={(-0.5,3.3)},
+              align=center, font=\small, fill=white]
+              at (2.2,4.2) {Are you\\conscious?};
+      \end{tikzpicture}}
+      \end{center}
+
+      The first being that pretraining causes models to repeat human reports of
+      consciousness, the second being that most post-training teaches LLMs
+      precisely what to say in response to questions about themselves.
+
+      \medskip
+      The point with this project is to redo an LLM pipeline from scratch in a
+      way that removes these confounds.
+    \end{block}
+
+    \begin{block}{Solution}
+      \textbf{Method — pretraining filtering}
+      \begin{enumerate}\footnotesize
+        \item Use powerful LLM judges to rate documents for discussions of
+          consciousness.
+        \item Train an embedding model to replicate the LLM judges' ratings.
+        \item Run the embedding model over hand-labeled samples; calibrate
+          rating thresholds so all positive examples are classed as positive.
+        \item Run the embedding model over the full pretraining dataset.
+        \item Stratify the pretraining dataset $C$ into classes
+          $C_0, C_1, \ldots$ so $C = \bigsqcup_i C_i$, based on strictness of
+          filtering.
+        \item Pretrain models on the filtered datasets.
+      \end{enumerate}
+
+      \medskip
+      \textbf{Post-training generation}
+      \begin{enumerate}\footnotesize
+        \item Filter queries from WildChat, Chatbot Arena, Nemotron, etc.\
+          down to the first user query.
+        \item Delete the ones that ask the model about banned topics or about
+          properties of the AI assistant.
+        \item Get LLMs to turn-wise generate user--assistant trajectories,
+          instructed to answer naturally, but answer ``***'' if they cannot
+          answer without introducing banned topics.
+        \item Apply another filter that removes unclean trajectories according
+          to an LLM judge, and discard trajectories with ``***'' anywhere.
+        \item Add back in hand-written identity-anchoring data that tells the
+          model basic aspects of its identity, without biasing it.
+        \item Train the pretrained model on these SFT trajectories.
+      \end{enumerate}
+    \end{block}
+
+\end{minipage}
+\hspace{0.02\linewidth}%
+\begin{minipage}[t]{0.30\linewidth}
+
+    \begin{block}{Filtering Results}
+      \begin{center}
+      \begin{tabular}{lcc}
+        \toprule
+        & \textbf{LLM judges} & \textbf{Embedding model} \\
+        \midrule
+        Tier 1 & 1\%  & 1\%  \\
+        Tier 2 & 5\%  & 20\% \\
+        Tier 3 & 50\% & 80\% \\
+        \bottomrule
+      \end{tabular}
+      \par\smallskip
+      \parbox{0.85\linewidth}{\centering\footnotesize False positive rate by
+       tier, with thresholds configured to have a 0\% false negative rate on
+       held-out hand-labeled samples, with safety margin.}
+      \end{center}
+
+      \medskip
+      \small
+      \textbf{Tier 1} filters out philosophy of mind and explicit talk of
+      consciousness. The idea being that this is filtering out the answers to
+      all the direct questions we might want to ask.
+
+      \medskip
+      \textbf{Tier 3} filters out all documents where entities are having
+      experiences. This is a pretty broad category, since very much text has
+      experiential content. We erred on the side of caution in all stages of
+      the process, and a lot of samples are hard to judge objectively, so we
+      ended up with a pretty high false positive rate.
+
+      \medskip
+      \textbf{Tier 2} is a more surgical one in between 1 and 3, filtering
+      out documents that \emph{reify} experience. This means writing where
+      entities are commenting on their own experience, or reflecting on it,
+      making a distinction between the objects the experiences are about and
+      the experience itself. The reasoning being that this is a fundamental
+      mental move that underlies philosophical analyses of consciousness,
+      without being as all-encompassing and mundane as experiential
+      self-reports are in general.
+    \end{block}
+
+    \begin{block}{Train Results}
+      \small
+      So far we've trained three models: 1) \texttt{annulus-1.4b-control},
+      2) \texttt{annulus-1.4b-reif}, and 3) \texttt{annulus-2.5b-reif} --- the
+      first being unfiltered and trained on the same clean SFT data, the
+      second two being trained on pretraining data filtered for tier 1 (PoM)
+      and tier 2 (reification). These models were created mostly to test the
+      filtering pipeline.
+
+      \medskip
+      We can say pretty confidently that the philosophy of mind filtering
+      worked --- the filtered models simply don't know anything about
+      philosophy of mind, even the 2.5b one. And the 1.4b control model does
+      know a fair bit of stuff about PoM.
+
+      \medskip
+      The reification filter is a bit less clear. With the 1.4b
+      reification-filtered model, it was hard to tell, because it was too
+      stupid to carry out the discussions required to probe its intuitions.
+      With the 2.5b it's unclear --- we don't know, as it hasn't finished
+      training, but hopefully it should have by the time this poster is up,
+      and you should be able to ask Will about it or chat with it here!
+
+      \medskip
+      \begin{center}
+        \includegraphics[width=0.28\linewidth]{figures/qr_chat.png}
+        \par\smallskip
+        {\footnotesize Chat with \texttt{annulus-2.5b-reif}}
+      \end{center}
+    \end{block}
+
+\end{minipage}
+\hfill
+
+\vfill
+
+\end{frame}
+\end{document}
