@@ -45,28 +45,29 @@
 % Metadata
 % ---------------------------------------------------------------------------
 \title{Studying Potential LLM Consciousness by Removing Confounds in Pretraining and Post-training}
-\author{William Wale$^{1}$ \and Mentor: Patrick Butlin$^{2}$}
-\institute{$^{1}$MATS \quad $^{2}$Eleos AI}
+\author{William Wale$^{1}$ \and Mentor: Patrick Butlin$^{2}$ \and External collaborator: Cameron Berg$^{3}$}
+\institute{$^{1}$MATS \quad $^{2}$Eleos AI \quad $^{3}$Reciprocal Research}
 
 % ---------------------------------------------------------------------------
 \begin{document}
 \begin{frame}[t]
 
 % ----- Header: title block with MATS logo top right ------------------------
-\begin{columns}[T]
-  \begin{column}{0.80\linewidth}
-    \vskip2ex
-    {\usebeamercolor[fg]{title}\usebeamerfont{title}\Huge\bfseries \inserttitle\par}
-    \vskip1.5ex
-    {\color{titleorange}\Large \insertauthor\par}
-    \vskip1ex
-    {\large \insertinstitute\par}
-  \end{column}
-  \begin{column}{0.16\linewidth}
-    \vskip2ex
-    \hfill\includegraphics[width=\linewidth]{figures/mats_logo.pdf}
-  \end{column}
-\end{columns}
+\noindent
+\setlength{\fboxsep}{1.5ex}%
+\colorbox{white}{%
+  \begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}
+    \begin{minipage}[c]{0.80\linewidth}
+      {\usebeamercolor[fg]{title}\usebeamerfont{title}\Huge\bfseries \inserttitle\par}
+      \vskip1.5ex
+      {\color{titleorange}\Large\bfseries \insertauthor\par}
+      \vskip1ex
+      {\large\bfseries \insertinstitute\par}
+    \end{minipage}\hfill
+    \begin{minipage}[c]{0.16\linewidth}
+      \includegraphics[width=\linewidth]{figures/mats_logo.pdf}
+    \end{minipage}
+  \end{minipage}}
 
 \vskip2ex
 {\color{accent}\hrule height 2pt}
@@ -251,13 +252,24 @@
       mental move that underlies philosophical analyses of consciousness,
       without being as all-encompassing and mundane as experiential
       self-reports are in general.
+
+      \medskip
+      {\color{accent!40}\hrule height 1pt}
+      \medskip
+      The false positive rate is high for tier 3 because the category is
+      somewhat vague, and we made conservative decisions in creating the
+      validation data (classifying a lot of stuff as containing experience).
     \end{block}
 
     \begin{block}{Train Results}
       \small
-      So far we've trained three models: 1) \texttt{annulus-1.4b-control},
-      2) \texttt{annulus-1.4b-reif}, and 3) \texttt{annulus-2.5b-reif} --- the
-      first being unfiltered and trained on the same clean SFT data, the
+      So far we've trained three models:
+      \begin{enumerate}
+        \item \texttt{annulus-1.4b-control}
+        \item \texttt{annulus-1.4b-reif}
+        \item \texttt{annulus-2.5b-reif}
+      \end{enumerate}
+      the first being unfiltered and trained on the same clean SFT data, the
       second two being trained on pretraining data filtered for tier 1 (PoM)
       and tier 2 (reification). These models were created mostly to test the
       filtering pipeline.
@@ -275,12 +287,54 @@
       With the 2.5b it's unclear --- we don't know, as it hasn't finished
       training, but hopefully it should have by the time this poster is up,
       and you should be able to ask Will about it or chat with it here!
+    \end{block}
 
-      \medskip
+\end{minipage}
+\hspace{0.02\linewidth}%
+\begin{minipage}[t]{0.30\linewidth}
+
+    \begin{block}{Chat with the Model}
       \begin{center}
         \includegraphics[width=0.28\linewidth]{figures/qr_chat.png}
         \par\smallskip
         {\footnotesize Chat with \texttt{annulus-2.5b-reif}}
+      \end{center}
+    \end{block}
+
+    \begin{block}{Remaining Work}
+      \small
+      The three models here are created to test out the filtering process and
+      make sure it removes all (or at least the vast vast majority of)
+      confounding data. Right now the pipeline is in a state where it can
+      scale up to training $4\times$ 7--8b models, which will be trained on
+      unfiltered data, filtered for tier 1, filtered for 1+2, and filtered
+      for 1+2+3. Then evaluations can proceed and we will get the final
+      results of the experiment. However, to be completely sure the filtering
+      works as intended, before we commit to the large final runs, we are
+      auditing the small models and the filtered data for a little while
+      before we proceed.
+    \end{block}
+
+    \begin{block}{Costs}
+      \small
+      The pipeline produces 1bn filtered tokens at a cost somewhere between
+      1--20 USD per billion tokens. Running the embedding model over the data
+      takes ${\sim}1$ USD, and ensembling embedding models produces modest
+      gains to accuracy. Generating labels with LLM judges cost around the
+      same as running the embedding models for our experiments, but the
+      fraction of total cost it comprises goes down as you filter a larger
+      corpus. The most aggressive filtering (removing tiers 1, 2, 3, with
+      conservatively set thresholds) produces around 1 filtered token per raw
+      fineweb-edu token.
+    \end{block}
+
+    \begin{block}{Look at the Data}
+      \small
+      Scan to browse the SFT seed prompts, the identity-anchoring
+      trajectories, and examples of documents with judge ratings and
+      reasoning.
+      \begin{center}
+        \includegraphics[width=0.24\linewidth]{figures/qr_data.png}
       \end{center}
     \end{block}
 

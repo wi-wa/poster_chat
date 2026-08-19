@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>annulus — look at the data</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    .tabs { display: flex; gap: 0.5rem; margin: 1rem 0; flex-wrap: wrap; }
+    .tabs button { padding: 0.5rem 1rem; border: 1px solid #888; border-radius: 6px;
+                   background: #f5f5f5; cursor: pointer; font-size: 1rem; }
+    .tabs button.active { background: #14305a; color: white; border-color: #14305a; }
+    .item { border: 1px solid #ddd; border-radius: 8px; padding: 0.8rem 1rem; margin: 0.8rem 0; }
+    .item .text { white-space: pre-wrap; }
+    .rating { margin-top: 0.6rem; padding: 0.5rem 0.8rem; background: #f0f4fa; border-radius: 6px; }
+    .rating b { color: #14305a; }
+    .score { display: inline-block; padding: 0 0.5em; border-radius: 4px; background: #14305a; color: white; }
+    pre.md { white-space: pre-wrap; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; }
+    .meta { color: #666; font-size: 0.85rem; margin-bottom: 0.4rem; }
+    #status { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>annulus — look at the data</h1>
+  <p>Samples of the data used in the project (see the <a href="index.html">main page</a>):
+     seed prompts for SFT generation, hand-written identity-anchoring trajectories, and
+     documents with LLM-judge ratings and reasoning.</p>
+  <div class="tabs">
+    <button id="b-prompts" onclick="show('prompts')">SFT seed prompts</button>
+    <button id="b-identity" onclick="show('identity')">Identity trajectories</button>
+    <button id="b-judge" onclick="show('judge')">Judge ratings &amp; reasoning</button>
+  </div>
+  <div id="status">Pick a dataset above.</div>
+  <div id="content"></div>
+
+  <script>
+    const cache = {};
+    async function fetchText(path) {
+      if (!(path in cache)) {
+        const r = await fetch(path);
+        if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+        cache[path] = await r.text();
+      }
+      return cache[path];
+    }
+    function esc(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    async function show(which) {
+      for (const id of ['prompts', 'identity', 'judge'])
+        document.getElementById('b-' + id).classList.toggle('active', id === which);
+      const status = document.getElementById('status');
+      const content = document.getElementById('content');
+      status.textContent = 'Loading…';
+      content.innerHTML = '';
+      try {
+        if (which === 'identity') {
+          const md = await fetchText('data/identity_trajs.md');
+          status.textContent = 'Hand-written identity-anchoring SFT trajectories.';
+          content.innerHTML = '<pre class="md">' + esc(md) + '</pre>';
+        } else if (which === 'prompts') {
+          const txt = await fetchText('data/prompts.jsonl');
+          const rows = txt.trim().split('\n').map(JSON.parse);
+          status.textContent = rows.length + ' randomly sampled seed prompts (first user queries, post-filtering).';
+          content.innerHTML = rows.map(r =>
+            '<div class="item"><div class="meta">source: ' + esc(r.source || '?') + '</div>' +
+            '<div class="text">' + esc(r.prompt) + '</div></div>').join('');
+        } else {
+          const txt = await fetchText('data/judge_examples.jsonl');
+          const rows = txt.trim().split('\n').map(JSON.parse);
+          status.textContent = rows.length + ' randomly sampled documents with LLM-judge ratings (texts truncated to excerpts).';
+          content.innerHTML = rows.map(r => {
+            let html = '<div class="item"><div class="text">' + esc(r.text) + '</div>';
+            for (const [dim, judgments] of Object.entries(r.ratings || {})) {
+              for (const j of judgments) {
+                html += '<div class="rating"><b>' + esc(dim) + '</b> ' +
+                        '<span class="score">' + esc(String(j.rating)) + '</span> ' +
+                        '<span class="meta">' + esc(j.model || '') + '</span>' +
+                        '<div>' + esc(j.explanation || '') + '</div></div>';
+              }
+            }
+            return html + '</div>';
+          }).join('');
+        }
+      } catch (e) {
+        status.textContent = 'Failed to load: ' + e.message;
+      }
+    }
+  </script>
+</body>
+</html>
