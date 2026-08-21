@@ -55,19 +55,20 @@
 % ----- Header: title block with MATS logo top right ------------------------
 \noindent
 \setlength{\fboxsep}{1.5ex}%
-\colorbox{white}{%
-  \begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}
-    \begin{minipage}[c]{0.80\linewidth}
-      {\usebeamercolor[fg]{title}\usebeamerfont{title}\Huge\bfseries \inserttitle\par}
+\begin{minipage}[t]{0.80\linewidth}
+  \colorbox{white}{%
+    \begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}
+      {\usebeamercolor[fg]{title}\usebeamerfont{title}\fontsize{54}{64}\selectfont\bfseries \inserttitle\par}
       \vskip1.5ex
       {\color{titleorange}\Large\bfseries \insertauthor\par}
       \vskip1ex
       {\large\bfseries \insertinstitute\par}
-    \end{minipage}\hfill
-    \begin{minipage}[c]{0.16\linewidth}
-      \includegraphics[width=\linewidth]{figures/mats_logo.pdf}
-    \end{minipage}
-  \end{minipage}}
+    \end{minipage}}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.18\linewidth}
+  \vskip0pt
+  \includegraphics[width=\linewidth]{figures/mats_logo.pdf}
+\end{minipage}
 
 \vskip2ex
 {\color{accent}\hrule height 2pt}
@@ -75,7 +76,8 @@
 
 % ----- Body -----------------------------------------------------------------
 \noindent
-\begin{minipage}[t]{0.30\linewidth}
+\newlength{\colheight}\setlength{\colheight}{46.8cm}
+\begin{minipage}[t][\colheight][s]{0.32\linewidth}
 
     \begin{block}{Motivation}
       Whether LLMs are conscious or not would mean a lot for how we ought to
@@ -175,6 +177,7 @@
       The point with this project is to redo an LLM pipeline from scratch in a
       way that removes these confounds.
     \end{block}
+\vfill
 
     \begin{block}{Solution}
       \textbf{Method — pretraining filtering}
@@ -210,8 +213,8 @@
     \end{block}
 
 \end{minipage}
-\hspace{0.02\linewidth}%
-\begin{minipage}[t]{0.30\linewidth}
+\hfill
+\begin{minipage}[t][\colheight][s]{0.32\linewidth}
 
     \begin{block}{Filtering Results}
       \begin{center}
@@ -260,6 +263,7 @@
       somewhat vague, and we made conservative decisions in creating the
       validation data (classifying a lot of stuff as containing experience).
     \end{block}
+\vfill
 
     \begin{block}{Train Results}
       \small
@@ -287,11 +291,15 @@
       With the 2.5b it's unclear --- we don't know, as it hasn't finished
       training, but hopefully it should have by the time this poster is up,
       and you should be able to ask Will about it or chat with it here!
+
+      \medskip
+      Filtering didn't reduce the performance of the models on downstream
+      capabilities like overall knowledge or GSM8K.
     \end{block}
 
 \end{minipage}
-\hspace{0.02\linewidth}%
-\begin{minipage}[t]{0.30\linewidth}
+\hfill
+\begin{minipage}[t][\colheight][s]{0.32\linewidth}
 
     \begin{block}{Chat with the Model}
       \begin{center}
@@ -300,6 +308,7 @@
         {\footnotesize Chat with \texttt{annulus-2.5b-reif}}
       \end{center}
     \end{block}
+\vfill
 
     \begin{block}{Remaining Work}
       \small
@@ -314,6 +323,7 @@
       auditing the small models and the filtered data for a little while
       before we proceed.
     \end{block}
+\vfill
 
     \begin{block}{Costs}
       \small
@@ -327,6 +337,7 @@
       conservatively set thresholds) produces around 1 filtered token per raw
       fineweb-edu token.
     \end{block}
+\vfill
 
     \begin{block}{Look at the Data}
       \small
@@ -339,7 +350,6 @@
     \end{block}
 
 \end{minipage}
-\hfill
 
 \vfill
 
