@@ -85,39 +85,35 @@ function loadError(target, error, retry) {
   icons();
 }
 
-const tabs = [...document.querySelectorAll('[role="tab"]')];
-function showTab() {
-  const name = location.hash.slice(1);
-  const selected = tabs.find((tab) => tab.dataset.tab === name) || tabs[0];
-  for (const tab of tabs) {
-    const active = tab === selected;
-    tab.setAttribute("aria-selected", String(active));
-    tab.tabIndex = active ? 0 : -1;
-    $(tab.dataset.tab).hidden = !active;
-  }
-  if (selected.dataset.tab === "eval") loadEval();
-  if (selected.dataset.tab === "sft") loadSft();
-  if (selected.dataset.tab === "handlabeled" && !$('hand-frame').getAttribute("src")) {
+const menuLinks = [...document.querySelectorAll(".menu-button")];
+function showView(moveFocus = false) {
+  const selected = menuLinks.find((link) => `#${link.dataset.view}` === location.hash)?.dataset.view || "home";
+  const previous = document.body.dataset.view;
+  if (selected === previous) return;
+  for (const panel of document.querySelectorAll("[data-panel]")) panel.hidden = panel.id !== selected;
+  document.body.dataset.view = selected;
+  $("home-link").hidden = selected === "home";
+  if (selected === "eval") loadEval();
+  if (selected === "sft") loadSft();
+  if (selected === "handlabeled" && !$("hand-frame").getAttribute("src")) {
     $("hand-frame").src = $("hand-frame").dataset.src;
   }
-}
-for (const [index, tab] of tabs.entries()) {
-  tab.addEventListener("click", () => {
-    if (location.hash !== `#${tab.dataset.tab}`) window.history.pushState(null, "", `#${tab.dataset.tab}`);
-    showTab();
+  if (moveFocus) {
+    const target = selected === "home" ? menuLinks.find((link) => link.dataset.view === previous) || menuLinks[0] : $(selected);
+    target.focus({ preventScroll: true });
     window.scrollTo(0, 0);
-  });
-  tab.addEventListener("keydown", (event) => {
-    const offsets = { ArrowLeft: -1, ArrowRight: 1, Home: -index, End: tabs.length - 1 - index };
-    if (!(event.key in offsets)) return;
+  }
+}
+for (const link of document.querySelectorAll("a[data-view]")) {
+  link.addEventListener("click", (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    const next = tabs[(index + offsets[event.key] + tabs.length) % tabs.length];
-    next.focus();
-    next.click();
+    if (location.hash !== link.hash) window.history.pushState(null, "", link.hash);
+    showView(true);
   });
 }
-window.addEventListener("hashchange", showTab);
-window.addEventListener("popstate", showTab);
+window.addEventListener("hashchange", () => showView(true));
+window.addEventListener("popstate", () => showView(true));
 
 let evalData;
 let evalLoading = false;
@@ -372,5 +368,5 @@ $("chat-clear").addEventListener("click", () => {
   $("chat-input").focus();
 });
 
-showTab();
+showView();
 icons();

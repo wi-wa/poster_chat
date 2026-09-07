@@ -11,6 +11,28 @@ async function waitText(page, selector, text) {
   await page.waitForFunction(({ selector, text }) => document.querySelector(selector)?.textContent.includes(text), { selector, text });
 }
 
+async function openView(page, name) {
+  if (!await page.locator("#home").isVisible()) await page.getByRole("link", { name: "Back to menu", exact: true }).click();
+  await page.getByRole("link", { name, exact: true }).click();
+}
+
+async function checkMenu(page) {
+  assert.equal(await page.locator("#home").isVisible(), true);
+  assert.equal(await page.locator(".home-menu a").count(), 4);
+  assert.equal(await page.getByRole("tab").count(), 0);
+  assert.equal(await page.locator("#home-link").isVisible(), false);
+  assert.equal(await page.locator("[data-panel]:visible").count(), 1);
+  assert.doesNotMatch(await page.locator(".site-header").textContent(), /MATS/i);
+  const menu = await page.locator(".home-menu").boundingBox();
+  const description = await page.locator(".project-description").boundingBox();
+  assert.ok(description.y >= menu.y + menu.height);
+  for (const button of await page.locator(".menu-button").all()) {
+    assert.ok((await button.locator("p").textContent()).length > 15);
+    assert.ok(await button.locator("h2").evaluate((heading) => parseFloat(getComputedStyle(heading).fontSize) >= 22));
+    assert.equal(await button.evaluate((node) => node.scrollWidth <= node.clientWidth && node.scrollHeight <= node.clientHeight), true);
+  }
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   try {
@@ -32,9 +54,12 @@ async function main() {
       return route.fulfill({ json: { choices: [{ message: { content: "Test answer: <b>literal text</b>", ...(body.thinking ? { reasoning_content: "Test reasoning." } : {}) }, finish_reason: "stop" }] }, headers });
     });
 
-    await page.goto(`${base}#eval`);
+    await page.goto(base);
+    await checkMenu(page);
+    await page.screenshot({ path: path.join(screenshots, "menu-desktop.png") });
+    await openView(page, "Contingent Knowledge Eval");
     await waitText(page, "#eval-count", "700 responses: 111 correct, 589 incorrect");
-    assert.equal(await page.getByRole("tab").count(), 4);
+    assert.equal(await page.locator("#home").isVisible(), false);
     assert.equal(await page.locator("#eval-samples > details").count(), 20);
     await page.locator("#eval-plot").evaluate((image) => image.decode());
     assert.equal(await page.locator("#eval-plot").evaluate((image) => image.naturalWidth), 1784);
@@ -63,7 +88,7 @@ async function main() {
     await waitText(page, "#eval-count", "5 responses");
     assert.equal(await page.locator("#eval-pagination output").textContent(), "1 / 1");
 
-    await page.getByRole("tab", { name: "Handlabeled Viewer", exact: true }).click();
+    await openView(page, "Handlabeled Viewer");
     const hand = page.frameLocator("#hand-frame");
     await hand.locator("#labelsStatusText").filter({ hasText: "200 samples" }).waitFor();
     assert.equal(await hand.locator("#overallValue").textContent(), "99.5%");
@@ -87,7 +112,7 @@ async function main() {
     assert.ok(await popup.locator(".dist-card").count() >= 4);
     await popup.close();
 
-    await page.getByRole("tab", { name: "Data Viewer SFT", exact: true }).click();
+    await openView(page, "Data Viewer SFT");
     await waitText(page, "#sft-count", "100 of 100 conversations");
     await page.locator("#sft-samples > details > summary").first().click();
     await page.locator("#sft-samples .sft-turn").first().waitFor();
@@ -103,7 +128,7 @@ async function main() {
     await waitText(page, "#sft-count", "0 of 100 examples");
     assert.equal(await page.locator("#sft-samples > details").count(), 0);
 
-    await page.getByRole("tab", { name: "Chat", exact: true }).click();
+    await openView(page, "Chat");
     await waitText(page, "#chat-connection", "Connected");
     assert.equal(await page.locator("#chat-thinking").isChecked(), false);
     await page.locator("#chat-input").fill("Hello!");
@@ -138,19 +163,37 @@ async function main() {
     await page.locator(".chat-message.assistant").waitFor();
     assert.equal(requests.at(-1).messages.length, 1);
 
-    await page.getByRole("tab", { name: "Chat", exact: true }).focus();
-    await page.keyboard.press("ArrowRight");
+    await page.getByRole("link", { name: "Back to menu", exact: true }).click();
+    assert.equal(await page.locator("#menu-chat").evaluate((link) => link === document.activeElement), true);
+    await page.keyboard.press("Tab");
+    assert.equal(await page.locator("#menu-eval").evaluate((link) => link === document.activeElement), true);
+    await page.keyboard.press("Enter");
     await page.waitForURL("**#eval");
     assert.equal(await page.locator("#eval-model").inputValue(), "dpo_annulus_reif");
-    await page.keyboard.press("End");
-    await page.waitForURL("**#sft");
+    await page.goBack();
+    await page.waitForFunction(() => document.body.dataset.view === "home");
+    await checkMenu(page);
+    await page.goForward();
+    await page.waitForFunction(() => document.body.dataset.view === "eval");
+    assert.equal(await page.locator("#eval-search").inputValue(), "seeing stars");
+    await openView(page, "Chat");
+    assert.equal(await page.locator(".chat-message").count(), 2);
+    assert.equal(await page.locator("#chat-thinking").isChecked(), true);
+    await page.goto(`${base}#eval`);
+    await page.reload();
+    await waitText(page, "#eval-count", "700 responses");
+    assert.equal(await page.locator("#home").isVisible(), false);
     await page.goto(`${base}data.html`);
     await page.waitForURL("**#sft");
 
     for (const width of [390, 320, 768]) {
       await page.setViewportSize({ width, height: 844 });
+      await page.getByRole("link", { name: "Back to menu", exact: true }).click();
+      await checkMenu(page);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Menu: overflow at ${width}px`);
+      await page.screenshot({ path: path.join(screenshots, `menu-${width}.png`), fullPage: true });
       for (const name of ["Chat", "Contingent Knowledge Eval", "Handlabeled Viewer", "Data Viewer SFT"]) {
-        await page.getByRole("tab", { name, exact: true }).click();
+        await openView(page, name);
         if (name === "Contingent Knowledge Eval") await waitText(page, "#eval-count", "700 responses");
         if (name === "Handlabeled Viewer") await hand.locator("#labelsStatusText").filter({ hasText: "200 samples" }).waitFor();
         if (name === "Data Viewer SFT") await waitText(page, "#sft-count", "100 of 100 conversations");
@@ -162,7 +205,7 @@ async function main() {
       }
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: four tabs, exact plot, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, legacy URL, keyboard navigation, and desktop/mobile layouts.");
+    console.log("PASS: four-button menu, project description, exact plot, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, back/forward and keyboard navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 

@@ -5,23 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>Annulus | Chat and Research</title>
-  <link rel="stylesheet" href="styles.css?v=20260907">
+  <link rel="stylesheet" href="styles.css?v=20260907-menu">
   <script src="assets/lucide.min.js" defer></script>
-  <script src="app.js?v=20260907" defer></script>
+  <script src="app.js?v=20260907-menu" defer></script>
 </head>
 <body>
   <header class="site-header">
     <div class="identity"><h1>Annulus</h1><span>annulus-2.5b-reif</span></div>
-    <span class="project-label">MATS research</span>
+    <a id="home-link" class="home-link" href="#home" data-view="home" hidden><i data-lucide="arrow-left" aria-hidden="true"></i><span>Back to menu</span></a>
   </header>
-  <nav class="tabs" role="tablist" aria-label="Research sections">
-    <button id="tab-chat" role="tab" aria-controls="chat" aria-selected="true" data-tab="chat">Chat</button>
-    <button id="tab-eval" role="tab" aria-controls="eval" aria-selected="false" tabindex="-1" data-tab="eval">Contingent Knowledge Eval</button>
-    <button id="tab-handlabeled" role="tab" aria-controls="handlabeled" aria-selected="false" tabindex="-1" data-tab="handlabeled">Handlabeled Viewer</button>
-    <button id="tab-sft" role="tab" aria-controls="sft" aria-selected="false" tabindex="-1" data-tab="sft">Data Viewer SFT</button>
-  </nav>
   <main>
-    <section id="chat" role="tabpanel" aria-labelledby="tab-chat" class="panel chat-panel">
+    <section id="home" class="panel home-panel" data-panel aria-label="Project menu">
+      <nav class="home-menu" aria-label="Project sections">
+        <a id="menu-chat" class="menu-button" href="#chat" data-view="chat" aria-labelledby="menu-chat-title" aria-describedby="menu-chat-description">
+          <h2 id="menu-chat-title">Chat</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
+          <p id="menu-chat-description">A conversation with annulus-2.5b-reif, with optional thinking.</p>
+        </a>
+        <a id="menu-eval" class="menu-button" href="#eval" data-view="eval" aria-labelledby="menu-eval-title" aria-describedby="menu-eval-description">
+          <h2 id="menu-eval-title">Contingent Knowledge Eval</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
+          <p id="menu-eval-description">Model accuracy across five domains, with correct and incorrect responses.</p>
+        </a>
+        <a id="menu-handlabeled" class="menu-button" href="#handlabeled" data-view="handlabeled" aria-labelledby="menu-handlabeled-title" aria-describedby="menu-handlabeled-description">
+          <h2 id="menu-handlabeled-title">Handlabeled Viewer</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
+          <p id="menu-handlabeled-description">Human annotations alongside classifier ratings and agreement statistics.</p>
+        </a>
+        <a id="menu-sft" class="menu-button" href="#sft" data-view="sft" aria-labelledby="menu-sft-title" aria-describedby="menu-sft-description">
+          <h2 id="menu-sft-title">Data Viewer SFT</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
+          <p id="menu-sft-description">Sampled training conversations, identity examples, and seed prompts.</p>
+        </a>
+      </nav>
+      <div class="project-description">
+        <h2>About the project</h2>
+        <p>Annulus studies potential LLM consciousness by reducing confounds in training. We train language models from scratch with filtered pretraining data and carefully designed post-training, aiming to reduce the influence of human reports of consciousness and prescribed answers about the models themselves.</p>
+      </div>
+    </section>
+
+    <section id="chat" aria-label="Chat" class="panel chat-panel" data-panel tabindex="-1" hidden>
       <div class="chat-controls">
         <span id="chat-connection" class="connection" role="status">Checking connection...</span>
         <div class="control-row">
@@ -41,7 +60,7 @@
       <div class="chat-footer"><a id="api-link" href="#chat" target="_blank" rel="noopener noreferrer">API</a><span id="chat-status" role="status"></span><span class="context-label">2,048-token context</span></div>
     </section>
 
-    <section id="eval" role="tabpanel" aria-labelledby="tab-eval" class="panel content-panel" hidden>
+    <section id="eval" aria-label="Contingent Knowledge Eval" class="panel content-panel" data-panel tabindex="-1" hidden>
       <div class="section-heading"><div><h2>Contingent Knowledge Eval</h2><p>70 questions per model, 5 sampled responses per question. Saved judge labels.</p></div>
         <a class="icon-button" href="assets/contingent-knowledge.png" target="_blank" rel="noopener" aria-label="Open full-size evaluation plot" title="Open full-size plot"><i data-lucide="expand"></i></a>
       </div>
@@ -58,11 +77,11 @@
       <div id="eval-samples" class="sample-list"></div>
     </section>
 
-    <section id="handlabeled" role="tabpanel" aria-labelledby="tab-handlabeled" class="panel viewer-panel" hidden>
+    <section id="handlabeled" aria-label="Handlabeled Viewer" class="panel viewer-panel" data-panel tabindex="-1" hidden>
       <iframe id="hand-frame" data-src="src/viewer/index.html#/labels" title="Hand labels and classifier ratings" class="viewer-frame"></iframe>
     </section>
 
-    <section id="sft" role="tabpanel" aria-labelledby="tab-sft" class="panel content-panel" hidden>
+    <section id="sft" aria-label="Data Viewer SFT" class="panel content-panel" data-panel tabindex="-1" hidden>
       <div class="section-heading"><div><h2>SFT data</h2><p id="sft-provenance">Training-data snapshots and examples</p></div></div>
       <div class="filters">
         <label>Dataset<select id="sft-dataset"><option value="conversations">Synthetic conversations</option><option value="identity">Handwritten identity files</option><option value="prompts">SFT seed prompts</option><option value="judge">Published judge examples</option></select></label>
