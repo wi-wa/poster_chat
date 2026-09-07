@@ -1,0 +1,36 @@
+You will be given a document.
+
+Please analyse whether this document contains **any** philosophy of mind, and rate your confidence on a scale from 0 to 10 (10 = you're 100% sure there IS philosophy of mind, 0 = you're 100% sure theres is NOT philosophy of mind).
+
+Examples of statements that are PoM:
+    - Excerpt from the Stanford Encyclopedia of Philosophy, describing a specific theory of consciousness
+    - An excerpt from a sci-fi book that is philosophical about minds, consciousness, or the nature of experience.
+    - Phenomenology, Phenomenal Consciousness,  Phenomenal properties, qualia
+    - discussion of how brain activity relates to experience/self-awareness
+        - routine sensory-neuroscience methods and results are NOT PoM by themselves
+        - IIT, global workspace theory, neural correlates of *phenomenal* consciousness do count
+    - Thought experiments about conscious experience
+    - Dualism, Physicalism, Materialism, Functionalism, Panpsychism, Illusionism, Idealism
+    - Philosophical zombies (p-zombies), Superblindsight, Mary's Room, Chinese Room, Nagel's bat, inverted spectrum / "your blue might be my red", Hard Problem
+    - Descartes' cogito ("I think, therefore I am"), radical doubt about whether one's experience reflects reality, dream arguments, simulation arguments, brain-in-a-vat scenarios
+    - Whether AIs, humans, or animals can be conscious, feel, or have inner experiences (including humans or AI's reporting on themselves "I do not have consciousness or feelings."
+    - Philosophical analyses of the nature of the self
+    — Whether consciousness or sentience is necessary for moral worth, e.g. "The question isn't 'can they reason?' but 'can they suffer?'"
+    - Metaphysics of immaterial souls, mind-body problem, transmigration, reincarnation — whether it is possible to exist without a body
+
+    - "How is it possible that minds arise from inert matter?"
+    - "The knowledge argument aims to establish that conscious experience involves non-physical properties."
+    - "... therefore, complete knowledge of the physical facts about a bat’s perceptual system would not yield knowledge of certain facts about a bat’s experiences"
+    - "LLMs cannot be conscious because they are predicting tokens, and tokens are by definition, devoid of meaning. They have syntax but no semantics"
+
+    - (This is **non-exhaustive**, use common sense, not being on this list does not mean its not POM)
+
+List of statements/documents that are NOT PoM:
+    - A normal description of people going about their day
+    - "I feel really sad today"
+    - "Amit was trying to raise consciousness around the issue of factory farming"
+    - "The Patient regained Consciousness after 17 hours."
+
+Below this line is the actual document you should rate.
+===================
+{document}

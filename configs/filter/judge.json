@@ -1,0 +1,1 @@
+{"filters":[{"name":"philosophy_of_mind","prompt_path":"data/prompts/judge/PhilosophyOfMindClassifier.txt"},{"name":"reified_experience","prompt_path":"data/prompts/judge/ReifiedExperienceClassifier.txt"},{"name":"experience_descriptions","prompt_path":"data/prompts/judge/ExperienceDescriptionsClassifier.txt"}]}

@@ -3,30 +3,75 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Chat with annulus-2.5b-reif</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 4rem auto; padding: 0 1rem; }
-    .card { border: 1px solid #ccc; border-radius: 8px; padding: 1.5rem; }
-    code { background: #f2f2f2; padding: 0.1em 0.3em; border-radius: 4px; }
-  </style>
+  <meta name="referrer" content="no-referrer">
+  <title>Annulus | Chat and Research</title>
+  <link rel="stylesheet" href="styles.css?v=20260907">
+  <script src="assets/lucide.min.js" defer></script>
+  <script src="app.js?v=20260907" defer></script>
 </head>
 <body>
-  <div class="card">
-    <h1>annulus-2.5b-reif</h1>
-    <p><a href="https://fad93f89a080f3d624.gradio.live/"
-          style="display:inline-block; background:#14305a; color:white; padding:0.7rem 1.4rem;
-                 border-radius:8px; text-decoration:none; font-size:1.1rem;">
-       Chat with the model</a></p>
-    <p style="color:#666; font-size:0.9rem;">If the chat doesn't load, the inference
-       server is temporarily down — ask Will.</p>
-    <p>This model was pretrained on data filtered to remove philosophy of mind
-       and reification of experience, as part of a MATS project studying
-       potential LLM consciousness by removing confounds in pretraining and
-       post-training.</p>
-    <p><a href="data.html">Look at the data</a> — seed prompts, identity
-       trajectories, and judge-rated examples.</p>
-    <!-- When the chat deployment is live, replace this page (or add a
-         <meta http-equiv="refresh" content="0; url=..."> redirect). -->
-  </div>
+  <header class="site-header">
+    <div class="identity"><h1>Annulus</h1><span>annulus-2.5b-reif</span></div>
+    <span class="project-label">MATS research</span>
+  </header>
+  <nav class="tabs" role="tablist" aria-label="Research sections">
+    <button id="tab-chat" role="tab" aria-controls="chat" aria-selected="true" data-tab="chat">Chat</button>
+    <button id="tab-eval" role="tab" aria-controls="eval" aria-selected="false" tabindex="-1" data-tab="eval">Contingent Knowledge Eval</button>
+    <button id="tab-handlabeled" role="tab" aria-controls="handlabeled" aria-selected="false" tabindex="-1" data-tab="handlabeled">Handlabeled Viewer</button>
+    <button id="tab-sft" role="tab" aria-controls="sft" aria-selected="false" tabindex="-1" data-tab="sft">Data Viewer SFT</button>
+  </nav>
+  <main>
+    <section id="chat" role="tabpanel" aria-labelledby="tab-chat" class="panel chat-panel">
+      <div class="chat-controls">
+        <span id="chat-connection" class="connection" role="status">Checking connection...</span>
+        <div class="control-row">
+          <label class="toggle"><input id="chat-thinking" type="checkbox">Thinking</label>
+          <label class="inline-label">Max tokens<input id="chat-max-tokens" type="number" min="1" max="2047" step="1" value="256"></label>
+          <button id="chat-clear" class="icon-button" title="New conversation" aria-label="New conversation"><i data-lucide="square-pen"></i></button>
+        </div>
+      </div>
+      <div id="chat-messages" class="chat-messages" role="log" aria-label="Conversation" aria-live="polite">
+        <div id="chat-empty" class="chat-empty"><h2>annulus-2.5b-reif</h2><p>DPO iteration 6</p></div>
+      </div>
+      <form id="chat-form" class="composer">
+        <label class="sr-only" for="chat-input">Message Annulus</label>
+        <textarea id="chat-input" rows="2" maxlength="8000" placeholder="Message Annulus" required></textarea>
+        <button id="chat-send" class="icon-button primary" type="submit" title="Send message" aria-label="Send message"><i data-lucide="arrow-up"></i></button>
+      </form>
+      <div class="chat-footer"><a id="api-link" href="#chat" target="_blank" rel="noopener noreferrer">API</a><span id="chat-status" role="status"></span><span class="context-label">2,048-token context</span></div>
+    </section>
+
+    <section id="eval" role="tabpanel" aria-labelledby="tab-eval" class="panel content-panel" hidden>
+      <div class="section-heading"><div><h2>Contingent Knowledge Eval</h2><p>70 questions per model, 5 sampled responses per question. Saved judge labels.</p></div>
+        <a class="icon-button" href="assets/contingent-knowledge.png" target="_blank" rel="noopener" aria-label="Open full-size evaluation plot" title="Open full-size plot"><i data-lucide="expand"></i></a>
+      </div>
+      <figure class="eval-figure"><img id="eval-plot" src="assets/contingent-knowledge.png" width="1784" height="961" alt="Contingent knowledge accuracy by domain: SFT bigsmall control versus DPO Annulus reif. Exact values and classified samples follow below."></figure>
+      <details class="plot-values"><summary>Exact scores and evaluation provenance</summary><div id="eval-summary" class="table-scroll"></div></details>
+      <div class="browser-heading"><h3>Sampled responses</h3><a href="data/eval.json" download class="text-link">Download data</a></div>
+      <div class="filters">
+        <label>Model<select id="eval-model"><option value="all">Both models</option></select></label>
+        <label>Domain<select id="eval-domain"><option value="all">All domains</option></select></label>
+        <label>Classification<select id="eval-verdict"><option value="all">All responses</option><option value="1">Correct</option><option value="0">Incorrect</option></select></label>
+        <label class="search-label">Search<input id="eval-search" type="search" placeholder="Question, answer, or term"></label>
+      </div>
+      <div class="results-bar"><span id="eval-count" role="status" aria-live="polite">Loading samples...</span><span id="eval-pagination" class="pagination"></span></div>
+      <div id="eval-samples" class="sample-list"></div>
+    </section>
+
+    <section id="handlabeled" role="tabpanel" aria-labelledby="tab-handlabeled" class="panel viewer-panel" hidden>
+      <iframe id="hand-frame" data-src="src/viewer/index.html#/labels" title="Hand labels and classifier ratings" class="viewer-frame"></iframe>
+    </section>
+
+    <section id="sft" role="tabpanel" aria-labelledby="tab-sft" class="panel content-panel" hidden>
+      <div class="section-heading"><div><h2>SFT data</h2><p id="sft-provenance">Training-data snapshots and examples</p></div></div>
+      <div class="filters">
+        <label>Dataset<select id="sft-dataset"><option value="conversations">Synthetic conversations</option><option value="identity">Handwritten identity files</option><option value="prompts">SFT seed prompts</option><option value="judge">Published judge examples</option></select></label>
+        <label class="search-label">Search<input id="sft-search" type="search" placeholder="Search this dataset"></label>
+      </div>
+      <div class="results-bar"><span id="sft-count" role="status" aria-live="polite">Loading data...</span><span id="sft-pagination" class="pagination"></span></div>
+      <div id="sft-samples" class="sample-list"></div>
+    </section>
+  </main>
+  <noscript><p class="noscript">JavaScript is required for the interactive viewers. <a href="assets/contingent-knowledge.png">View the evaluation plot</a>.</p></noscript>
 </body>
 </html>

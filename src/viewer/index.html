@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Annulus | Handlabeled Viewer</title>
+    <!-- Bump ?v= together on every viewer change so stale cached assets never mix. -->
+    <link rel="stylesheet" href="./styles.css?v=23" />
+    <link rel="stylesheet" href="./embedded.css?v=20260907" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="homeView" class="view home-view" hidden>
+        <div class="home-card">
+          <h1>Consciousness Filter</h1>
+          <p class="home-subhead">
+            Documents rated by LLM classifiers for consciousness-related content.
+          </p>
+          <nav class="home-buttons" aria-label="Site sections">
+            <a class="home-button" href="#/labels">
+              <strong>Compare with hand labels</strong>
+              <span>Hand-annotated samples vs model ratings, sorted by disagreement</span>
+            </a>
+            <a class="home-button" href="#/data">
+              <strong>Hand-labeled documents</strong>
+              <span>200-document snapshot with per-model judgements</span>
+            </a>
+          </nav>
+        </div>
+      </section>
+
+      <section id="labelsView" class="view labels-view" hidden>
+        <header class="topbar">
+          <div class="title-block">
+            <h1>Hand labels vs model ratings</h1>
+            <div id="labelsStatusText" class="status-text" role="status" aria-live="polite">Loading hand-annotated samples&hellip;</div>
+          </div>
+          <div class="toolbar" aria-label="Hand-label controls">
+            <a class="prompt-link" href="#/">home</a>
+            <div class="control-stack">
+              <button
+                id="distributionButton"
+                class="stats-button"
+                type="button"
+                title="Open per-model rating histograms for this filter in a new window"
+              >
+                distribution statistics
+              </button>
+              <label class="control control-primary">
+                <span>Filter</span>
+                <select id="labelsFilterSelect"></select>
+              </label>
+            </div>
+            <label class="control">
+              <span>Sort samples by</span>
+              <select id="labelsSortSelect">
+                <option value="hand">Hand-label disagreement (current)</option>
+                <option value="models">Model disagreement (variance)</option>
+              </select>
+            </label>
+            <label class="control control-toggle" title="Standardize each model's ratings within each filter against the full corpus, then aggregate the z-values">
+              <span>Scale</span>
+              <span class="toggle-row">
+                <input id="labelsZToggle" type="checkbox" />
+                <span class="toggle-text">z-values</span>
+              </span>
+            </label>
+          </div>
+          <div id="labelsZNote" class="z-note" hidden></div>
+        </header>
+        <div class="labels-workspace">
+          <aside class="correlation-panel" aria-label="Pairwise model correlations for the selected filter">
+            <section class="correlation-block" aria-labelledby="correlationTitle">
+              <div class="correlation-head">
+                <h2 id="correlationTitle">Normalized pairwise correlations</h2>
+                <span id="correlationCaption" class="model-stats-caption"></span>
+              </div>
+              <div id="correlationMatrix" class="correlation-matrix"></div>
+              <div class="correlation-scale" aria-label="Color scale from negative one in red through zero to positive one in green">
+                <span>&minus;1</span>
+                <span class="correlation-scale-bar" aria-hidden="true"></span>
+                <span>+1</span>
+              </div>
+              <div class="correlation-note">
+                Each cell is Pearson <em>r</em> across matched samples, standardized
+                over every defined cell in the square as (<em>r</em> &minus; mean) / population
+                standard deviation. Colors saturate at &minus;1 and +1. A dash means
+                the value is undefined. The z-values knob does not change these:
+                Pearson <em>r</em> is invariant under per-model standardization.
+              </div>
+            </section>
+          </aside>
+          <aside class="model-stats-panel" aria-label="Model comparison metrics for the selected filter">
+            <div class="model-stats-head">
+              <h2>Model agreement</h2>
+              <span id="modelStatsCaption" class="model-stats-caption"></span>
+            </div>
+            <div id="modelStatsList" class="model-stats-list"></div>
+            <div class="model-stats-foot">
+              <strong>vs you</strong>: mean absolute error against your hand labels
+              (0 &rarr; 0, 1 &rarr; 10), over samples you have labeled for this filter.
+              <strong>vs models</strong>: MAE against the mean of the other checked
+              models on the same document, over all matched samples. Lower is closer.
+              Unchecking a model excludes its ratings from every computed number on
+              this page and from the mean ratings on the data page; its own rows stay
+              visible so you can re-check it.
+              <span id="modelStatsScaleNote"></span>
+            </div>
+            <div class="overall-block">
+              <div class="overall-head">
+                <h2>Overall accuracy</h2>
+                <span class="overall-readout">
+                  <span id="overallValue" class="overall-value">&ndash;</span>
+                  <span id="overallN" class="overall-n"></span>
+                </span>
+              </div>
+              <div class="overall-note">
+                Fraction of labeled samples correctly classified using the selected
+                checked-model aggregation and classification threshold below.
+              </div>
+            </div>
+            <div class="threshold-block">
+              <div class="threshold-head">
+                <h2>Classification threshold</h2>
+                <span id="thresholdValue" class="threshold-value"></span>
+              </div>
+              <div class="threshold-controls">
+                <button id="thresholdMinus" class="icon-button" type="button" title="Threshold &minus;0.1">&minus;</button>
+                <input
+                  id="thresholdRange"
+                  class="threshold-range"
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="0.1"
+                  value="5"
+                  aria-label="Classification threshold from 0.0 to 10.0"
+                />
+                <button id="thresholdPlus" class="icon-button" type="button" title="Threshold +0.1">+</button>
+              </div>
+              <label class="control aggregation-control">
+                <span>Combine checked models</span>
+                <select id="accuracyAggregationSelect">
+                  <option value="mean">Mean</option>
+                  <option value="max">Max</option>
+                </select>
+              </label>
+              <div id="accuracyList" class="accuracy-list"></div>
+              <div id="thresholdNote" class="threshold-note">
+                The selected aggregate of checked-model ratings &ge; x classifies a
+                sample as 1; below x classifies it as 0. <strong>positive accuracy</strong>
+                is the fraction of hand-label-1 samples classified 1.
+                <strong>negative accuracy</strong> is the fraction of hand-label-0
+                samples classified 0.
+              </div>
+            </div>
+          </aside>
+          <div id="labelsBody" class="annotations-body labels-body"></div>
+        </div>
+        <footer id="labelsSortNote" class="labels-foot">
+          Sorted by hand-label disagreement: |mean model rating &minus; hand label|
+          for the selected filter, with binary hand labels 0/1 mapped to 0/10.
+          Unlabeled or unmatched samples sort last. Click a row to expand it.
+        </footer>
+      </section>
+
+      <section id="dataView" class="view data-view" hidden>
+        <header class="topbar">
+          <div class="title-block">
+            <h1>Consciousness Filter</h1>
+            <div id="statusText" class="status-text">Loading rated documents&hellip;</div>
+          </div>
+
+          <div class="toolbar" aria-label="Document controls">
+            <a class="prompt-link" href="#/">home</a>
+
+            <button id="promptButton" class="prompt-link" type="button" title="Show the prompt models are fed for this filter">
+              see prompt
+            </button>
+
+            <label class="control control-primary">
+              <span>Filter</span>
+              <select id="filterSelect"></select>
+            </label>
+
+            <label class="control control-toggle" title="Standardize each model's ratings within each filter against the full corpus, then aggregate the z-values">
+              <span>Scale</span>
+              <span class="toggle-row">
+                <input id="dataZToggle" type="checkbox" />
+                <span class="toggle-text">z-values</span>
+              </span>
+            </label>
+
+            <div class="stepper" aria-label="Document navigation">
+              <button id="prevButton" class="icon-button" type="button" title="Previous document (&larr;)">&larr;</button>
+              <output id="positionText" class="position-text">0 / 0</output>
+              <button id="nextButton" class="icon-button" type="button" title="Next document (&rarr;)">&rarr;</button>
+            </div>
+          </div>
+          <div id="dataZNote" class="z-note" hidden></div>
+        </header>
+
+        <section class="chart-card" aria-label="Distribution of mean ratings">
+          <div class="chart-head">
+            <h2>Mean rating distribution</h2>
+            <span id="chartSummary" class="chart-summary"></span>
+          </div>
+          <div id="histogram" class="histogram" role="group" aria-label="Documents per mean-rating bin; click a bin to filter"></div>
+          <div id="chartTooltip" class="chart-tooltip" hidden></div>
+        </section>
+
+        <section class="workspace" aria-label="Document browser">
+          <aside class="document-list-panel">
+            <div id="documentList" class="document-list"></div>
+          </aside>
+
+          <article class="document-panel">
+            <div class="document-meta">
+              <div class="document-meta-text">
+                <div id="documentTitle" class="document-title">No document selected</div>
+                <div id="documentSubhead" class="document-subhead"></div>
+              </div>
+              <div class="mean-badge-block">
+                <div id="meanBadge" class="mean-badge">&ndash;</div>
+                <div class="mean-badge-caption">mean</div>
+              </div>
+            </div>
+            <div class="document-body">
+              <pre id="documentText" class="document-text"></pre>
+              <div id="judgementList" class="judgement-list" hidden></div>
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <div id="promptModal" class="modal-backdrop" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="promptModalTitle">
+        <div class="modal-head">
+          <h3 id="promptModalTitle">Classifier prompt</h3>
+          <button id="promptModalClose" class="icon-button" type="button" title="Close (Esc)">&times;</button>
+        </div>
+        <pre id="promptModalText" class="modal-text"></pre>
+        <div class="modal-foot">
+          The rating script appends standard output-format instructions
+          (&lt;explanation&gt;, &lt;quote&gt;, &lt;rating&gt; tags) after the document.
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js?v=23"></script>
+  </body>
+</html>

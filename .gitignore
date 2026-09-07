@@ -4,3 +4,5 @@
 *.out
 *.snm
 *.toc
+__pycache__/
+node_modules/

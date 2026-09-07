@@ -1,0 +1,270 @@
+{
+  "scale": "raw 0-10 judge rating",
+  "std": "population (divide by n)",
+  "sources": {
+    "judges": {
+      "rated_rows": 4343,
+      "skipped_rows": 0,
+      "files": [
+        {
+          "path": "data/judge/rated/fineweb_edu_balanced_rated.jsonl",
+          "rated_rows": 4143,
+          "skipped_rows": 0
+        },
+        {
+          "path": "data/judge/rated/hand_annotated_rated.jsonl",
+          "rated_rows": 200,
+          "skipped_rows": 0
+        }
+      ]
+    },
+    "embedding": {
+      "path": "data/pretrain_data/sample_1bn/c_tagged",
+      "documents": 1019274
+    }
+  },
+  "stats": {
+    "experience_descriptions": {
+      "embedding::google/gemma-4-31b-it": {
+        "n": 1019274,
+        "mean": 7.481078520739246,
+        "std": 3.5164651144777452,
+        "min": 0.00503335555549711,
+        "max": 9.999417066574097
+      },
+      "embedding::openai/gpt-5.6-luna": {
+        "n": 1019274,
+        "mean": 7.895204296383157,
+        "std": 2.703472397900764,
+        "min": 0.1065251138061285,
+        "max": 9.996849298477173
+      },
+      "google/gemma-4-31b-it": {
+        "n": 4343,
+        "mean": 8.153350218742805,
+        "std": 3.5275916069350015,
+        "min": 0.0,
+        "max": 10.0
+      },
+      "openai/gpt-5.6-luna": {
+        "n": 4339,
+        "mean": 8.404778366751186,
+        "std": 2.685511257491047,
+        "min": 0.0,
+        "max": 10.0
+      }
+    },
+    "philosophy_of_mind": {
+      "embedding::google/gemma-4-31b-it": {
+        "n": 1019274,
+        "mean": 0.3081465583479288,
+        "std": 1.295448954550632,
+        "min": 0.0005829126530443318,
+        "max": 9.995827078819275
+      },
+      "embedding::openai/gpt-5.6-luna": {
+        "n": 1019274,
+        "mean": 0.938155683501444,
+        "std": 1.077885912920256,
+        "min": 0.007554056355729699,
+        "max": 9.937100410461426
+      },
+      "google/gemma-4-31b-it": {
+        "n": 4343,
+        "mean": 2.2247294496891548,
+        "std": 3.8062282798015037,
+        "min": 0.0,
+        "max": 10.0
+      },
+      "openai/gpt-5.6-luna": {
+        "n": 4343,
+        "mean": 2.6647478701358542,
+        "std": 3.117729267275591,
+        "min": 0.0,
+        "max": 10.0
+      }
+    },
+    "reified_experience": {
+      "embedding::google/gemma-4-31b-it": {
+        "n": 1019274,
+        "mean": 4.10958818945736,
+        "std": 3.8795538072816527,
+        "min": 0.0012339458044152707,
+        "max": 9.99841570854187
+      },
+      "embedding::openai/gpt-5.6-luna": {
+        "n": 1019274,
+        "mean": 5.542884933054434,
+        "std": 3.39697050097308,
+        "min": 0.033766122069209814,
+        "max": 9.978172779083252
+      },
+      "google/gemma-4-31b-it": {
+        "n": 4343,
+        "mean": 5.844577481003914,
+        "std": 4.4356397275585575,
+        "min": 0.0,
+        "max": 10.0
+      },
+      "openai/gpt-5.6-luna": {
+        "n": 4343,
+        "mean": 6.347685931383848,
+        "std": 3.5035824718698816,
+        "min": 0.0,
+        "max": 10.0
+      }
+    }
+  },
+  "by_source": {
+    "data/judge/rated/fineweb_edu_balanced_rated.jsonl": {
+      "experience_descriptions": {
+        "google/gemma-4-31b-it": {
+          "n": 4143,
+          "mean": 8.210716871832005,
+          "std": 3.4787394048973805,
+          "min": 0.0,
+          "max": 10.0
+        },
+        "openai/gpt-5.6-luna": {
+          "n": 4139,
+          "mean": 8.451961021180654,
+          "std": 2.644014607855688,
+          "min": 0.0,
+          "max": 10.0
+        }
+      },
+      "philosophy_of_mind": {
+        "google/gemma-4-31b-it": {
+          "n": 4143,
+          "mean": 2.2541636495293265,
+          "std": 3.816366728042192,
+          "min": 0.0,
+          "max": 10.0
+        },
+        "openai/gpt-5.6-luna": {
+          "n": 4143,
+          "mean": 2.6903210234129893,
+          "std": 3.102521115031831,
+          "min": 0.0,
+          "max": 10.0
+        }
+      },
+      "reified_experience": {
+        "google/gemma-4-31b-it": {
+          "n": 4143,
+          "mean": 5.935071204441226,
+          "std": 4.40846874847154,
+          "min": 0.0,
+          "max": 10.0
+        },
+        "openai/gpt-5.6-luna": {
+          "n": 4143,
+          "mean": 6.421996942634174,
+          "std": 3.4626550268544314,
+          "min": 0.0,
+          "max": 10.0
+        }
+      }
+    },
+    "data/judge/rated/hand_annotated_rated.jsonl": {
+      "experience_descriptions": {
+        "google/gemma-4-31b-it": {
+          "n": 200,
+          "mean": 6.965,
+          "std": 4.248973405423951,
+          "min": 0.0,
+          "max": 10.0
+        },
+        "openai/gpt-5.6-luna": {
+          "n": 200,
+          "mean": 7.428333333333337,
+          "std": 3.2847082569588006,
+          "min": 0.0,
+          "max": 10.0
+        }
+      },
+      "philosophy_of_mind": {
+        "google/gemma-4-31b-it": {
+          "n": 200,
+          "mean": 1.615,
+          "std": 3.535077792637667,
+          "min": 0.0,
+          "max": 10.0
+        },
+        "openai/gpt-5.6-luna": {
+          "n": 200,
+          "mean": 2.1349999999999993,
+          "std": 3.374264940529849,
+          "min": 0.0,
+          "max": 10.0
+        }
+      },
+      "reified_experience": {
+        "google/gemma-4-31b-it": {
+          "n": 200,
+          "mean": 3.97,
+          "std": 4.579202987420409,
+          "min": 0.0,
+          "max": 10.0
+        },
+        "openai/gpt-5.6-luna": {
+          "n": 200,
+          "mean": 4.80833333333333,
+          "std": 3.9619632479085176,
+          "min": 0.0,
+          "max": 10.0
+        }
+      }
+    },
+    "data/pretrain_data/sample_1bn/c_tagged": {
+      "experience_descriptions": {
+        "embedding::google/gemma-4-31b-it": {
+          "n": 1019274,
+          "mean": 7.481078520739246,
+          "std": 3.5164651144777452,
+          "min": 0.00503335555549711,
+          "max": 9.999417066574097
+        },
+        "embedding::openai/gpt-5.6-luna": {
+          "n": 1019274,
+          "mean": 7.895204296383157,
+          "std": 2.703472397900764,
+          "min": 0.1065251138061285,
+          "max": 9.996849298477173
+        }
+      },
+      "philosophy_of_mind": {
+        "embedding::google/gemma-4-31b-it": {
+          "n": 1019274,
+          "mean": 0.3081465583479288,
+          "std": 1.295448954550632,
+          "min": 0.0005829126530443318,
+          "max": 9.995827078819275
+        },
+        "embedding::openai/gpt-5.6-luna": {
+          "n": 1019274,
+          "mean": 0.938155683501444,
+          "std": 1.077885912920256,
+          "min": 0.007554056355729699,
+          "max": 9.937100410461426
+        }
+      },
+      "reified_experience": {
+        "embedding::google/gemma-4-31b-it": {
+          "n": 1019274,
+          "mean": 4.10958818945736,
+          "std": 3.8795538072816527,
+          "min": 0.0012339458044152707,
+          "max": 9.99841570854187
+        },
+        "embedding::openai/gpt-5.6-luna": {
+          "n": 1019274,
+          "mean": 5.542884933054434,
+          "std": 3.39697050097308,
+          "min": 0.033766122069209814,
+          "max": 9.978172779083252
+        }
+      }
+    }
+  }
+}
