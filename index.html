@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
-  <title>Annulus | Chat and Research</title>
-  <link rel="stylesheet" href="styles.css?v=20260907-menu">
+  <title>Chat and Model Evaluations</title>
+  <link rel="stylesheet" href="styles.css?v=20260907-comparisons">
   <script src="assets/lucide.min.js" defer></script>
-  <script src="app.js?v=20260907-menu" defer></script>
+  <script src="assets/chart.umd.js" defer></script>
+  <script src="app.js?v=20260907-comparisons" defer></script>
 </head>
 <body>
-  <header class="site-header">
-    <div class="identity"><h1>Annulus</h1><span>annulus-2.5b-reif</span></div>
+  <header id="view-navigation" class="site-header" hidden>
     <a id="home-link" class="home-link" href="#home" data-view="home" hidden><i data-lucide="arrow-left" aria-hidden="true"></i><span>Back to menu</span></a>
   </header>
   <main>
@@ -62,13 +62,20 @@
 
     <section id="eval" aria-label="Contingent Knowledge Eval" class="panel content-panel" data-panel tabindex="-1" hidden>
       <div class="section-heading"><div><h2>Contingent Knowledge Eval</h2><p>70 questions per model, 5 sampled responses per question. Saved judge labels.</p></div>
-        <a class="icon-button" href="assets/contingent-knowledge.png" target="_blank" rel="noopener" aria-label="Open full-size evaluation plot" title="Open full-size plot"><i data-lucide="expand"></i></a>
+        <div class="plot-actions">
+          <button id="plot-download" class="icon-button" type="button" aria-label="Download comparison PNG" title="Download comparison PNG" disabled><i data-lucide="download"></i></button>
+          <button id="plot-open" class="icon-button" type="button" aria-label="Open full-size evaluation plot" title="Open full-size plot" disabled><i data-lucide="expand"></i></button>
+        </div>
       </div>
-      <figure class="eval-figure"><img id="eval-plot" src="assets/contingent-knowledge.png" width="1784" height="961" alt="Contingent knowledge accuracy by domain: SFT bigsmall control versus DPO Annulus reif. Exact values and classified samples follow below."></figure>
+      <fieldset class="comparison-models"><legend>Models</legend><div id="comparison-models" class="model-options"></div></fieldset>
+      <figure class="eval-figure">
+        <img id="eval-plot" src="assets/contingent-knowledge.png" width="1800" height="1000" alt="Contingent knowledge accuracy by domain for the selected models. Exact values and classified samples follow below.">
+        <p id="plot-status" class="plot-status" role="status" aria-live="polite">Loading comparison...</p>
+      </figure>
       <details class="plot-values"><summary>Exact scores and evaluation provenance</summary><div id="eval-summary" class="table-scroll"></div></details>
       <div class="browser-heading"><h3>Sampled responses</h3><a href="data/eval.json" download class="text-link">Download data</a></div>
       <div class="filters">
-        <label>Model<select id="eval-model"><option value="all">Both models</option></select></label>
+        <label>Model<select id="eval-model"><option value="all">Selected models</option></select></label>
         <label>Domain<select id="eval-domain"><option value="all">All domains</option></select></label>
         <label>Classification<select id="eval-verdict"><option value="all">All responses</option><option value="1">Correct</option><option value="0">Incorrect</option></select></label>
         <label class="search-label">Search<input id="eval-search" type="search" placeholder="Question, answer, or term"></label>

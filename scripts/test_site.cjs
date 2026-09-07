@@ -16,11 +16,37 @@ async function openView(page, name) {
   await page.getByRole("link", { name, exact: true }).click();
 }
 
+async function waitPlot(page) {
+  await page.waitForFunction(() => !document.querySelector("#plot-download").disabled && document.querySelector("#eval-plot").src.startsWith("blob:"));
+  await page.locator("#eval-plot").evaluate((image) => image.decode());
+  assert.equal(await page.evaluate(() => Object.keys(Chart.instances).length), 0);
+}
+
+async function plotPixels(page) {
+  return page.locator("#eval-plot").evaluate((image) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+    const bytes = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const counts = { green: 0, pink: 0, blue: 0, orange: 0, purple: 0, white: 0 };
+    const colors = { "44,160,44": "green", "212,103,178": "pink", "38,115,184": "blue", "220,139,40": "orange", "112,69,156": "purple", "255,255,255": "white" };
+    for (let i = 0; i < bytes.length; i += 4) {
+      const color = colors[`${bytes[i]},${bytes[i + 1]},${bytes[i + 2]}`];
+      if (color) counts[color] += 1;
+    }
+    return counts;
+  });
+}
+
 async function checkMenu(page) {
   assert.equal(await page.locator("#home").isVisible(), true);
   assert.equal(await page.locator(".home-menu a").count(), 4);
   assert.equal(await page.getByRole("tab").count(), 0);
   assert.equal(await page.locator("#home-link").isVisible(), false);
+  assert.equal(await page.locator("#view-navigation").isVisible(), false);
+  assert.equal(await page.locator(".identity").count(), 0);
   assert.equal(await page.locator("[data-panel]:visible").count(), 1);
   assert.doesNotMatch(await page.locator(".site-header").textContent(), /MATS/i);
   const menu = await page.locator(".home-menu").boundingBox();
@@ -61,12 +87,62 @@ async function main() {
     await waitText(page, "#eval-count", "700 responses: 111 correct, 589 incorrect");
     assert.equal(await page.locator("#home").isVisible(), false);
     assert.equal(await page.locator("#eval-samples > details").count(), 20);
-    await page.locator("#eval-plot").evaluate((image) => image.decode());
-    assert.equal(await page.locator("#eval-plot").evaluate((image) => image.naturalWidth), 1784);
+    await waitPlot(page);
+    assert.equal(await page.locator("#comparison-models input").count(), 5);
+    assert.equal(await page.locator("#comparison-models input:checked").count(), 2);
+    assert.equal(await page.locator("#eval-plot").evaluate((image) => image.naturalWidth), 1800);
+    const initialPixels = await plotPixels(page);
+    assert.ok(initialPixels.green > 100 && initialPixels.pink > 100 && initialPixels.white > 100000);
+    assert.equal(initialPixels.blue, 0);
+    const downloadReady = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download comparison PNG", exact: true }).click();
+    const download = await downloadReady;
+    assert.match(download.suggestedFilename(), /sft_bigsmall_control-vs-dpo_annulus_reif\.png$/);
+    const pngPath = path.join(screenshots, "comparison.png");
+    await download.saveAs(pngPath);
+    const png = fs.readFileSync(pngPath);
+    assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    assert.equal(png.readUInt32BE(16), 1800);
+    assert.equal(png.readUInt32BE(20), 1000);
+    const expandedReady = page.context().waitForEvent("page");
+    await page.getByRole("button", { name: "Open full-size evaluation plot", exact: true }).click();
+    const expanded = await expandedReady;
+    await expanded.waitForLoadState();
+    assert.ok(expanded.url().startsWith("blob:"));
+    await expanded.close();
     await page.screenshot({ path: path.join(screenshots, "eval-desktop.png") });
     await page.locator(".plot-values > summary").click();
     assert.equal(await page.locator("#eval-summary tbody tr").count(), 6);
     assert.match(await page.locator("#eval-summary").textContent(), /1.54% \(1\/65\)/);
+    for (const checkbox of await page.locator("#comparison-models input").all()) await checkbox.check();
+    await waitPlot(page);
+    await waitText(page, "#eval-count", "1750 responses: 202 correct, 1548 incorrect");
+    assert.equal(await page.locator("#eval-summary thead th").count(), 6);
+    assert.equal(await page.locator("#eval-model option").count(), 6);
+    const allPixels = await plotPixels(page);
+    for (const color of ["green", "pink", "blue", "orange", "purple"]) assert.ok(allPixels[color] > 100, `Missing ${color} bars`);
+    await page.screenshot({ path: path.join(screenshots, "eval-five-models.png") });
+    await page.locator("#comparison-models").evaluate((group) => {
+      for (const checkbox of group.querySelectorAll("input")) {
+        checkbox.checked = false;
+        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    assert.equal(await page.locator("#plot-download").isDisabled(), true);
+    assert.equal(await page.locator("#plot-open").isDisabled(), true);
+    await waitText(page, "#plot-status", "No models selected.");
+    await waitText(page, "#eval-count", "0 responses");
+    await page.locator('input[value="sft_bigsmall_filtered"]').check();
+    await waitPlot(page);
+    await waitText(page, "#eval-count", "350 responses: 9 correct, 341 incorrect");
+    const singlePixels = await plotPixels(page);
+    assert.ok(singlePixels.blue > 100);
+    for (const color of ["green", "pink", "orange", "purple"]) assert.equal(singlePixels[color], 0);
+    await page.locator('input[value="sft_bigsmall_filtered"]').uncheck();
+    await page.locator('input[value="sft_bigsmall_control"]').check();
+    await page.locator('input[value="dpo_annulus_reif"]').check();
+    await waitPlot(page);
+    const unfilteredPNG = await page.locator("#eval-plot").getAttribute("src");
     await page.locator("#eval-verdict").selectOption("1");
     await waitText(page, "#eval-count", "111 responses: 111 correct, 0 incorrect");
     await page.locator("#eval-model").selectOption("dpo_annulus_reif");
@@ -87,6 +163,7 @@ async function main() {
     await page.locator("#eval-search").fill("seeing stars");
     await waitText(page, "#eval-count", "5 responses");
     assert.equal(await page.locator("#eval-pagination output").textContent(), "1 / 1");
+    assert.equal(await page.locator("#eval-plot").getAttribute("src"), unfilteredPNG);
 
     await openView(page, "Handlabeled Viewer");
     const hand = page.frameLocator("#hand-frame");
@@ -194,7 +271,7 @@ async function main() {
       await page.screenshot({ path: path.join(screenshots, `menu-${width}.png`), fullPage: true });
       for (const name of ["Chat", "Contingent Knowledge Eval", "Handlabeled Viewer", "Data Viewer SFT"]) {
         await openView(page, name);
-        if (name === "Contingent Knowledge Eval") await waitText(page, "#eval-count", "700 responses");
+        if (name === "Contingent Knowledge Eval") { await waitText(page, "#eval-count", "700 responses"); await waitPlot(page); }
         if (name === "Handlabeled Viewer") await hand.locator("#labelsStatusText").filter({ hasText: "200 samples" }).waitFor();
         if (name === "Data Viewer SFT") await waitText(page, "#sft-count", "100 of 100 conversations");
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${name}: overflow at ${width}px`);
@@ -205,7 +282,7 @@ async function main() {
       }
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: four-button menu, project description, exact plot, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, back/forward and keyboard navigation, and desktop/mobile layouts.");
+    console.log("PASS: menu without redundant header, five-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 

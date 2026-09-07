@@ -14,12 +14,25 @@ class PublicDataTests(unittest.TestCase):
 
     def test_all_samples_are_unique_and_judged(self):
         samples = self.data["samples"]
-        self.assertEqual(len(samples), 700)
-        self.assertEqual(len({(row["model"], row["id"], row["sample_index"]) for row in samples}), 700)
-        self.assertEqual(Counter(row["score"] for row in samples), {0: 589, 1: 111})
+        self.assertEqual(len(samples), 1750)
+        self.assertEqual(len({(row["model"], row["id"], row["sample_index"]) for row in samples}), 1750)
+        self.assertEqual(Counter(row["score"] for row in samples), {0: 1548, 1: 202})
+
+    def test_original_comparison_is_unchanged(self):
+        models = {model["model_name"]: model for model in self.data["metadata"]["models"]}
+        self.assertEqual(len(models), 5)
+        self.assertEqual(self.data["metadata"]["default_models"], ["sft_bigsmall_control", "dpo_annulus_reif"])
+        for original in self.data["metadata"]["original_plot_models"]:
+            actual = models[original["model_name"]]
+            self.assertEqual(actual["score"], original["score"])
+            for domain, expected in original["categories"].items():
+                for key in ("items", "responses_judged", "correct_responses", "score"):
+                    self.assertEqual(actual["categories"][domain][key], expected[key])
 
     def test_every_plotted_score_matches_its_samples(self):
         for model in self.data["metadata"]["models"]:
+            self.assertEqual(model["items"], 70)
+            self.assertEqual(model["responses_judged"], 350)
             samples = [row for row in self.data["samples"] if row["model"] == model["model_name"]]
             self.assertEqual(len(samples), model["responses_judged"])
             self.assertEqual(sum(row["score"] for row in samples), model["correct_responses"])

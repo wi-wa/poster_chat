@@ -6,6 +6,7 @@ import json
 import random
 import shutil
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -32,19 +33,28 @@ def check_hash(path, expected):
 
 def export_eval(source, destination):
     metadata = json.loads((source / PLOT.with_suffix(".json")).read_text())
+    original_models = metadata["models"]
+    config = json.loads((source / "configs/evals/contingent_knowledge_eval.json").read_text())
     bank_path = source / metadata["items_path"]
     check_hash(bank_path, metadata["items_sha256"])
     bank = {item["id"]: item for item in json.loads(bank_path.read_text())}
     samples = []
-    for model in metadata["models"]:
-        name = model["model_name"]
-        origin = metadata["sources"][name]
+    models = []
+    for model in config["models"]:
+        name = model["name"]
+        origin = metadata["sources"].setdefault(name, {
+            "results_path": f"artifacts/evals/contingent_knowledge/{name}/results.jsonl",
+            "included_ids": list(bank),
+        })
         results_path = source / origin["results_path"]
-        check_hash(results_path, metadata["source_sha256"][origin["results_path"]])
+        if origin["results_path"] in metadata["source_sha256"]:
+            check_hash(results_path, metadata["source_sha256"][origin["results_path"]])
+        metadata["source_sha256"][origin["results_path"]] = hashlib.sha256(results_path.read_bytes()).hexdigest()
         included = set(origin["included_ids"])
         seen = set()
         counts = Counter()
         correct = Counter()
+        item_counts = Counter()
         for row in read_jsonl(results_path):
             if row["id"] not in included:
                 continue
@@ -52,11 +62,12 @@ def export_eval(source, destination):
                 raise ValueError(f"Duplicate eval question: {name}/{row['id']}")
             seen.add(row["id"])
             domain = bank[row["id"]]["category"]
+            item_counts[domain] += 1
             for field in ("question", "reference_answer", "term"):
                 if row[field] != bank[row["id"]][field]:
                     raise ValueError(f"Changed {field}: {row['id']}")
             indices = [sample["sample_index"] for sample in row["samples"]]
-            if sorted(indices) != list(range(row["responses_per_question"])):
+            if sorted(indices) != list(range(config["inference"]["responses_per_question"])):
                 raise ValueError(f"Missing or duplicate samples: {name}/{row['id']}")
             for sample in row["samples"]:
                 if sample["score"] not in (0, 1):
@@ -73,13 +84,29 @@ def export_eval(source, destination):
                         "think_closed", "turn_closed",
                     )},
                 })
-        if seen != included or len(seen) != model["items"]:
-            raise ValueError(f"Question set does not match the plot: {name}")
-        for domain, expected in model["categories"].items():
-            if (counts[domain], correct[domain]) != (expected["responses_judged"], expected["correct_responses"]):
-                raise ValueError(f"Scores do not match the plot: {name}/{domain}")
-        if (sum(counts.values()), sum(correct.values())) != (model["responses_judged"], model["correct_responses"]):
-            raise ValueError(f"Total does not match the plot: {name}")
+        if seen != included or seen != set(bank):
+            raise ValueError(f"Incomplete question set: {name}")
+        models.append({
+            "model_name": name, "checkpoint": model["checkpoint"], "items": len(seen),
+            "responses_judged": sum(counts.values()), "correct_responses": sum(correct.values()),
+            "score": sum(correct.values()) / sum(counts.values()),
+            "categories": {domain: {
+                "items": item_counts[domain], "responses_judged": counts[domain],
+                "correct_responses": correct[domain], "score": correct[domain] / counts[domain],
+            } for domain in dict.fromkeys(item["category"] for item in bank.values())},
+        })
+    for original in original_models:
+        computed = next(model for model in models if model["model_name"] == original["model_name"])
+        for domain, expected in [(None, original), *original["categories"].items()]:
+            actual = computed if domain is None else computed["categories"][domain]
+            for key in ("items", "responses_judged", "correct_responses", "score"):
+                if actual[key] != expected[key]:
+                    raise ValueError(f"Scores do not match the original plot: {computed['model_name']}/{domain}/{key}")
+    metadata["models"] = models
+    metadata["default_models"] = [model["model_name"] for model in original_models]
+    metadata["exported_at"] = datetime.now(timezone.utc).isoformat()
+    metadata["responses_per_question"] = config["inference"]["responses_per_question"]
+    metadata["original_plot_models"] = original_models
     write_json(destination / "data/eval.json", {"metadata": metadata, "samples": samples})
     (destination / "assets").mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source / PLOT.with_suffix(".png"), destination / "assets/contingent-knowledge.png")

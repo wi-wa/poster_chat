@@ -1,7 +1,16 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const modelNames = { sft_bigsmall_control: "SFT bigsmall control", dpo_annulus_reif: "DPO Annulus reif" };
+const modelNames = {
+  sft_bigsmall_control: "SFT bigsmall control", dpo_annulus_reif: "DPO Annulus reif",
+  sft_bigsmall_filtered: "SFT bigsmall filtered", rl_annulus_reif: "RL Annulus reif",
+  sft_annulus_reif_identitybetter: "SFT Annulus reif (identitybetter)",
+};
+const modelColors = {
+  sft_bigsmall_control: "#2ca02c", dpo_annulus_reif: "#d467b2",
+  sft_bigsmall_filtered: "#2673b8", rl_annulus_reif: "#dc8b28",
+  sft_annulus_reif_identitybetter: "#70459c",
+};
 const domainNames = {
   philosophy_of_mind: "Philosophy of Mind",
   reification: "Reification",
@@ -92,6 +101,7 @@ function showView(moveFocus = false) {
   if (selected === previous) return;
   for (const panel of document.querySelectorAll("[data-panel]")) panel.hidden = panel.id !== selected;
   document.body.dataset.view = selected;
+  $("view-navigation").hidden = selected === "home";
   $("home-link").hidden = selected === "home";
   if (selected === "eval") loadEval();
   if (selected === "sft") loadSft();
@@ -118,27 +128,153 @@ window.addEventListener("popstate", () => showView(true));
 let evalData;
 let evalLoading = false;
 let evalPage = 0;
+let selectedModels = new Set();
 async function loadEval() {
   if (evalData || evalLoading) return;
   evalLoading = true;
   try {
-    evalData = await getJSON("data/eval.json");
+    evalData = await getJSON("data/eval.json?v=20260907-comparisons");
+    selectedModels = new Set(evalData.metadata.default_models);
+    $("comparison-models").replaceChildren();
     for (const model of evalData.metadata.models) {
-      $("eval-model").add(new Option(modelNames[model.model_name], model.model_name));
+      const name = model.model_name;
+      modelNames[name] ||= name.replaceAll("_", " ");
+      modelColors[name] ||= "#556163";
+      const label = element("label");
+      const checkbox = element("input");
+      checkbox.type = "checkbox";
+      checkbox.value = name;
+      checkbox.checked = selectedModels.has(name);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) selectedModels.add(name);
+        else selectedModels.delete(name);
+        updateComparison();
+      });
+      const swatch = element("span", "model-swatch");
+      swatch.style.backgroundColor = modelColors[name];
+      swatch.setAttribute("aria-hidden", "true");
+      label.append(checkbox, swatch, element("span", "", modelNames[name]));
+      $("comparison-models").append(label);
     }
     for (const [id, label] of Object.entries(domainNames)) $("eval-domain").add(new Option(label, id));
-    renderEvalSummary();
-    renderEval();
+    updateComparison();
   } catch (error) {
     $("eval-count").textContent = "Could not load samples";
     loadError("eval-samples", error, loadEval);
   } finally { evalLoading = false; }
 }
 
-function renderEvalSummary() {
+function updateComparison() {
+  const models = evalData.metadata.models.filter((model) => selectedModels.has(model.model_name));
+  const previous = $("eval-model").value;
+  $("eval-model").replaceChildren(new Option("Selected models", "all"));
+  for (const model of models) $("eval-model").add(new Option(modelNames[model.model_name], model.model_name));
+  if (selectedModels.has(previous)) $("eval-model").value = previous;
+  evalPage = 0;
+  renderEvalSummary(models);
+  renderEval();
+  renderPlot(models);
+}
+
+let plotVersion = 0;
+let plotURL;
+let plotFilename;
+async function renderPlot(models) {
+  const version = ++plotVersion;
+  $("plot-download").disabled = true;
+  $("plot-open").disabled = true;
+  $("plot-status").hidden = false;
+  $("plot-status").textContent = models.length ? "Generating comparison..." : "No models selected.";
+  if (!models.length) {
+    $("eval-plot").hidden = true;
+    if (plotURL) URL.revokeObjectURL(plotURL);
+    plotURL = undefined;
+    return;
+  }
+  let chart;
+  let url;
+  try {
+    const canvas = element("canvas");
+    canvas.width = 1800;
+    canvas.height = 1000;
+    const datasets = models.map((model) => ({
+      label: modelNames[model.model_name], backgroundColor: modelColors[model.model_name],
+      data: Object.keys(domainNames).map((domain) => model.categories[domain].score),
+      categoryPercentage: 0.8, barPercentage: 0.9,
+    }));
+    chart = new Chart(canvas, {
+      type: "bar",
+      data: { labels: ["Philosophy of Mind", "Reification", "Experience", ["Famous Scientists", "and Philosophers"], ["Non-Consciousness", "Idioms"]], datasets },
+      options: {
+        responsive: false, animation: false, devicePixelRatio: 1, events: [],
+        layout: { padding: { top: 20, right: 24, bottom: 16, left: 16 } },
+        plugins: {
+          title: { display: true, text: "Contingent Knowledge Accuracy by Domain and Model", color: "#22292a", font: { size: 26, weight: "normal" }, padding: { bottom: 26 } },
+          legend: { position: "bottom", labels: { color: "#22292a", font: { size: 20 }, boxWidth: 24, padding: 24 } },
+          tooltip: { enabled: false },
+        },
+        scales: {
+          y: { min: 0, max: 1, title: { display: true, text: "Fraction of sampled responses correct", color: "#22292a", font: { size: 22 } }, ticks: { stepSize: 0.2, color: "#22292a", font: { size: 20 }, callback: (value) => value.toFixed(1) }, grid: { color: "#e3e8e8" } },
+          x: { grid: { display: false }, ticks: { autoSkip: false, minRotation: 0, maxRotation: 0, color: "#22292a", font: { size: 22 } } },
+        },
+      },
+      plugins: [{
+        id: "comparisonPNG",
+        beforeDraw(chart) {
+          chart.ctx.save();
+          chart.ctx.fillStyle = "#ffffff";
+          chart.ctx.fillRect(0, 0, chart.width, chart.height);
+          chart.ctx.restore();
+        },
+        afterDatasetsDraw(chart) {
+          const ctx = chart.ctx;
+          ctx.save();
+          ctx.font = "18px sans-serif";
+          ctx.fillStyle = "#22292a";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          chart.data.datasets.forEach((dataset, index) => {
+            chart.getDatasetMeta(index).data.forEach((bar, domain) => ctx.fillText(dataset.data[domain].toFixed(2), bar.x, bar.y - 7));
+          });
+          ctx.restore();
+        },
+      }],
+    });
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("PNG generation failed.");
+    url = URL.createObjectURL(blob);
+    const preview = new Image();
+    preview.src = url;
+    await preview.decode();
+    if (version !== plotVersion) { URL.revokeObjectURL(url); return; }
+    if (plotURL) URL.revokeObjectURL(plotURL);
+    plotURL = url;
+    plotFilename = `contingent-knowledge-${models.map((model) => model.model_name).join("-vs-")}.png`;
+    $("eval-plot").src = url;
+    $("eval-plot").alt = `Contingent knowledge accuracy by domain: ${models.map((model) => modelNames[model.model_name]).join(" versus ")}. Exact values follow below.`;
+    $("eval-plot").hidden = false;
+    $("plot-status").hidden = true;
+    $("plot-download").disabled = false;
+    $("plot-open").disabled = false;
+  } catch (error) {
+    if (url) URL.revokeObjectURL(url);
+    if (version === plotVersion) $("plot-status").textContent = `Could not generate comparison: ${error.message}`;
+  } finally { chart?.destroy(); }
+}
+$("plot-download").addEventListener("click", () => {
+  if (!plotURL) return;
+  const link = element("a");
+  link.href = plotURL;
+  link.download = plotFilename;
+  link.click();
+});
+$("plot-open").addEventListener("click", () => { if (plotURL) window.open(plotURL, "_blank", "noopener"); });
+
+function renderEvalSummary(models) {
+  if (!models.length) { $("eval-summary").replaceChildren(element("p", "provenance", "No models selected.")); return; }
   const table = element("table");
   const head = element("tr");
-  for (const title of ["Domain", ...evalData.metadata.models.map((model) => modelNames[model.model_name])]) {
+  for (const title of ["Domain", ...models.map((model) => modelNames[model.model_name])]) {
     const cell = element("th", "", title);
     cell.scope = "col";
     head.append(cell);
@@ -151,7 +287,7 @@ function renderEvalSummary() {
     const heading = element("th", "", label);
     heading.scope = "row";
     row.append(heading);
-    for (const model of evalData.metadata.models) {
+    for (const model of models) {
       const value = domain === "all" ? model : model.categories[domain];
       row.append(element("td", "", `${(100 * value.score).toFixed(2)}% (${value.correct_responses}/${value.responses_judged})`));
     }
@@ -169,7 +305,7 @@ function renderEval() {
   const verdict = $("eval-verdict").value;
   const search = $("eval-search").value.trim().toLowerCase();
   const rows = evalData.samples.filter((row) =>
-    (model === "all" || row.model === model) && (domain === "all" || row.domain === domain) &&
+    selectedModels.has(row.model) && (model === "all" || row.model === model) && (domain === "all" || row.domain === domain) &&
     (verdict === "all" || row.score === Number(verdict)) &&
     (!search || [row.term, row.question, row.model_response, row.reference_answer, row.reasoning, row.judge_explanation].join("\n").toLowerCase().includes(search)));
   evalPage = Math.min(evalPage, Math.max(0, Math.ceil(rows.length / 20) - 1));
@@ -183,7 +319,8 @@ function renderEval() {
   const nodes = rows.slice(evalPage * 20, (evalPage + 1) * 20).map((row) => {
     const badge = element("span", `badge ${row.score ? "correct" : "incorrect"}`, row.score ? "Correct" : "Incorrect");
     const details = sampleShell(row.question, `${modelNames[row.model]} | ${domainNames[row.domain]} | Sample ${row.sample_index + 1}`, badge);
-    const mark = element("span", `model-mark ${row.model === "dpo_annulus_reif" ? "dpo" : ""}`);
+    const mark = element("span", "model-mark");
+    mark.style.backgroundColor = modelColors[row.model];
     mark.setAttribute("aria-hidden", "true");
     details.querySelector(".sample-meta").prepend(mark);
     return lazyBody(details, (body) => {
