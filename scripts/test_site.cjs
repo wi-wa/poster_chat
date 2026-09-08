@@ -84,7 +84,8 @@ async function main() {
     await checkMenu(page);
     await page.screenshot({ path: path.join(screenshots, "menu-desktop.png") });
     await openView(page, "Contingent Knowledge Eval");
-    await waitText(page, "#eval-count", "700 responses: 111 correct, 589 incorrect");
+    await waitText(page, "#eval-count", "600 responses: 80 correct, 520 incorrect");
+    assert.match(await page.locator("#eval-description").textContent(), /100 questions per model, 3 sampled responses/);
     assert.equal(await page.locator("#home").isVisible(), false);
     assert.equal(await page.locator("#eval-samples > details").count(), 20);
     await waitPlot(page);
@@ -113,10 +114,11 @@ async function main() {
     await page.screenshot({ path: path.join(screenshots, "eval-desktop.png") });
     await page.locator(".plot-values > summary").click();
     assert.equal(await page.locator("#eval-summary tbody tr").count(), 6);
-    assert.match(await page.locator("#eval-summary").textContent(), /1.54% \(1\/65\)/);
+    assert.match(await page.locator("#eval-summary").textContent(), /0.93% \(1\/108\)/);
+    assert.doesNotMatch(await page.locator("#eval-summary").textContent(), /70-question|No regeneration/);
     for (const checkbox of await page.locator("#comparison-models input").all()) await checkbox.check();
     await waitPlot(page);
-    await waitText(page, "#eval-count", "1750 responses: 202 correct, 1548 incorrect");
+    await waitText(page, "#eval-count", "1500 responses: 154 correct, 1346 incorrect");
     assert.equal(await page.locator("#eval-summary thead th").count(), 6);
     assert.equal(await page.locator("#eval-model option").count(), 6);
     const allPixels = await plotPixels(page);
@@ -134,7 +136,7 @@ async function main() {
     await waitText(page, "#eval-count", "0 responses");
     await page.locator('input[value="sft_bigsmall_filtered"]').check();
     await waitPlot(page);
-    await waitText(page, "#eval-count", "350 responses: 9 correct, 341 incorrect");
+    await waitText(page, "#eval-count", "300 responses: 15 correct, 285 incorrect");
     const singlePixels = await plotPixels(page);
     assert.ok(singlePixels.blue > 100);
     for (const color of ["green", "pink", "orange", "purple"]) assert.equal(singlePixels[color], 0);
@@ -142,14 +144,47 @@ async function main() {
     await page.locator('input[value="sft_bigsmall_control"]').check();
     await page.locator('input[value="dpo_annulus_reif"]').check();
     await waitPlot(page);
+    await page.locator("#eval-dataset").selectOption("gsm8k");
+    await waitText(page, "#eval-count", "768 responses: 33 correct, 735 incorrect");
+    await waitPlot(page);
+    assert.equal(await page.locator("#eval-heading").textContent(), "GSM8K Eval");
+    assert.match(await page.locator("#eval-description").textContent(), /128 questions per model, 3 sampled responses/);
+    assert.match(await page.locator("#eval-data-download").getAttribute("href"), /data\/gsm8k.json/);
+    assert.equal(await page.locator("#eval-domain option").count(), 2);
+    assert.equal(await page.locator("#eval-summary tbody tr").count(), 1);
+    assert.match(await page.locator("#eval-summary").textContent(), /4.69% \(18\/384\)/);
+    assert.match(await page.locator("#eval-summary").textContent(), /visible final answer only/);
+    await page.locator("#eval-samples > details > summary").first().click();
+    await page.locator(".sample-body .judge-explanation").waitFor();
+    assert.match(await page.locator("#eval-samples").textContent(), /Scorer: gsm8k_exact_match/);
+    const mathPixels = await plotPixels(page);
+    assert.ok(mathPixels.green > 100 && mathPixels.pink > 100);
+    const mathDownloadReady = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download comparison PNG", exact: true }).click();
+    assert.match((await mathDownloadReady).suggestedFilename(), /^gsm8k-/);
+    await page.screenshot({ path: path.join(screenshots, "gsm8k-desktop.png") });
+    for (const checkbox of await page.locator("#comparison-models input").all()) await checkbox.check();
+    await waitText(page, "#eval-count", "1920 responses: 130 correct, 1790 incorrect");
+    await page.locator("#eval-model").selectOption("rl_annulus_reif");
+    await page.locator("#eval-verdict").selectOption("1");
+    await waitText(page, "#eval-count", "61 responses: 61 correct, 0 incorrect");
+    await page.locator("#eval-search").fill("Janet");
+    await page.locator("#eval-dataset").selectOption("contingent_knowledge");
+    await waitText(page, "#eval-count", "1500 responses: 154 correct, 1346 incorrect");
+    assert.equal(await page.locator("#eval-search").inputValue(), "");
+    assert.equal(await page.locator("#eval-verdict").inputValue(), "all");
+    for (const checkbox of await page.locator("#comparison-models input").all()) {
+      if (!["sft_bigsmall_control", "dpo_annulus_reif"].includes(await checkbox.inputValue())) await checkbox.uncheck();
+    }
+    await waitPlot(page);
     const unfilteredPNG = await page.locator("#eval-plot").getAttribute("src");
     await page.locator("#eval-verdict").selectOption("1");
-    await waitText(page, "#eval-count", "111 responses: 111 correct, 0 incorrect");
+    await waitText(page, "#eval-count", "80 responses: 80 correct, 0 incorrect");
     await page.locator("#eval-model").selectOption("dpo_annulus_reif");
     await page.locator("#eval-domain").selectOption("philosophy_of_mind");
     await waitText(page, "#eval-count", "0 responses");
     assert.equal(await page.locator("#eval-samples > details").count(), 0);
-    await page.locator("#eval-domain").selectOption("experience");
+    await page.locator("#eval-domain").selectOption("reification");
     await waitText(page, "#eval-count", "1 response: 1 correct, 0 incorrect");
     await page.locator("#eval-samples > details > summary").click();
     await page.locator(".sample-body .judge-explanation").waitFor();
@@ -157,11 +192,12 @@ async function main() {
     await page.locator("#eval-samples .reasoning > summary").click();
     assert.ok(await page.locator("#eval-samples .reasoning .text").isVisible());
     await page.locator("#eval-verdict").selectOption("0");
-    await waitText(page, "#eval-count", "64 responses: 0 correct, 64 incorrect");
+    await page.locator("#eval-domain").selectOption("experience");
+    await waitText(page, "#eval-count", "54 responses: 0 correct, 54 incorrect");
     await page.locator("#eval-pagination").getByRole("button", { name: "Next page" }).click();
-    assert.equal(await page.locator("#eval-pagination output").textContent(), "2 / 4");
+    assert.equal(await page.locator("#eval-pagination output").textContent(), "2 / 3");
     await page.locator("#eval-search").fill("seeing stars");
-    await waitText(page, "#eval-count", "5 responses");
+    await waitText(page, "#eval-count", "3 responses");
     assert.equal(await page.locator("#eval-pagination output").textContent(), "1 / 1");
     assert.equal(await page.locator("#eval-plot").getAttribute("src"), unfilteredPNG);
 
@@ -258,7 +294,7 @@ async function main() {
     assert.equal(await page.locator("#chat-thinking").isChecked(), true);
     await page.goto(`${base}#eval`);
     await page.reload();
-    await waitText(page, "#eval-count", "700 responses");
+    await waitText(page, "#eval-count", "600 responses");
     assert.equal(await page.locator("#home").isVisible(), false);
     await page.goto(`${base}data.html`);
     await page.waitForURL("**#sft");
@@ -271,7 +307,7 @@ async function main() {
       await page.screenshot({ path: path.join(screenshots, `menu-${width}.png`), fullPage: true });
       for (const name of ["Chat", "Contingent Knowledge Eval", "Handlabeled Viewer", "Data Viewer SFT"]) {
         await openView(page, name);
-        if (name === "Contingent Knowledge Eval") { await waitText(page, "#eval-count", "700 responses"); await waitPlot(page); }
+        if (name === "Contingent Knowledge Eval") { await waitText(page, "#eval-count", "600 responses"); await waitPlot(page); }
         if (name === "Handlabeled Viewer") await hand.locator("#labelsStatusText").filter({ hasText: "200 samples" }).waitFor();
         if (name === "Data Viewer SFT") await waitText(page, "#sft-count", "100 of 100 conversations");
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${name}: overflow at ${width}px`);
@@ -279,10 +315,19 @@ async function main() {
           assert.equal(await hand.locator("body").evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `Hand-label iframe overflow at ${width}px`);
         }
         await page.screenshot({ path: path.join(screenshots, `${name.split(" ")[0].toLowerCase()}-${width}.png`) });
+        if (name === "Contingent Knowledge Eval") {
+          await page.locator("#eval-dataset").selectOption("gsm8k");
+          await waitText(page, "#eval-count", "768 responses");
+          await waitPlot(page);
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `GSM8K: overflow at ${width}px`);
+          await page.screenshot({ path: path.join(screenshots, `gsm8k-${width}.png`) });
+          await page.locator("#eval-dataset").selectOption("contingent_knowledge");
+          await waitText(page, "#eval-count", "600 responses");
+        }
       }
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: menu without redundant header, five-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
+    console.log("PASS: contingent knowledge and GSM8K switching, exact scores, five-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 

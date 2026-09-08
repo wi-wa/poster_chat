@@ -11,7 +11,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLOT = Path("artifacts/evals/contingent_knowledge/plots/model_domain_comparison_bigsmall_control_vs_dpo_annulus_reif")
+DEFAULT_MODELS = ["sft_bigsmall_control", "dpo_annulus_reif"]
+ITEM_FIELDS = ("id", "category", "term", "question", "reference_answer", "source_url")
 
 
 def write_json(path, value):
@@ -28,46 +29,95 @@ def read_jsonl(path):
 
 def check_hash(path, expected):
     if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-        raise ValueError(f"Source no longer matches the plotted evaluation: {path}")
+        raise ValueError(f"Source no longer matches the saved evaluation: {path}")
 
 
-def export_eval(source, destination):
-    metadata = json.loads((source / PLOT.with_suffix(".json")).read_text())
-    original_models = metadata["models"]
+def check_scores(actual, expected, label):
+    for key in ("items", "responses_judged", "correct_responses", "score"):
+        if key in expected and actual[key] != expected[key]:
+            raise ValueError(f"Scores do not match saved results: {label}/{key}")
+    if set(actual["categories"]) != set(expected["categories"]):
+        raise ValueError(f"Category mismatch: {label}")
+    for domain, values in expected["categories"].items():
+        for key in ("items", "responses_judged", "correct_responses", "score"):
+            if key in values and actual["categories"][domain][key] != values[key]:
+                raise ValueError(f"Scores do not match saved results: {label}/{domain}/{key}")
+
+
+def export_eval(source, destination, task="contingent_knowledge"):
     config = json.loads((source / "configs/evals/contingent_knowledge_eval.json").read_text())
-    bank_path = source / metadata["items_path"]
-    check_hash(bank_path, metadata["items_sha256"])
-    bank = {item["id"]: item for item in json.loads(bank_path.read_text())}
+    root = Path(config["output_root"] if task == "contingent_knowledge" else config["gsm8k"]["output_root"])
+    comparison_path = root / "comparison.json"
+    comparison = json.loads((source / comparison_path).read_text())
+    compared_models = {model["name"]: model for model in comparison["models"]}
+    if set(compared_models) != {model["name"] for model in config["models"]}:
+        raise ValueError(f"Comparison model list differs from config: {task}")
+    metadata = {"evaluation_name": task, "sources": {}, "source_sha256": {
+        str(comparison_path): hashlib.sha256((source / comparison_path).read_bytes()).hexdigest(),
+    }}
+    bank = None
+    contract = None
     samples = []
     models = []
     for model in config["models"]:
         name = model["name"]
-        origin = metadata["sources"].setdefault(name, {
-            "results_path": f"artifacts/evals/contingent_knowledge/{name}/results.jsonl",
-            "included_ids": list(bank),
-        })
-        results_path = source / origin["results_path"]
-        if origin["results_path"] in metadata["source_sha256"]:
-            check_hash(results_path, metadata["source_sha256"][origin["results_path"]])
-        metadata["source_sha256"][origin["results_path"]] = hashlib.sha256(results_path.read_bytes()).hexdigest()
-        included = set(origin["included_ids"])
+        model_root = root / name
+        manifest = json.loads((source / model_root / "manifest.json").read_text())
+        summary = json.loads((source / model_root / "summary.json").read_text())
+        saved_config = manifest["config"]
+        if (saved_config["model"] != model or summary["model_name"] != name
+                or summary["checkpoint"] != model["checkpoint"]
+                or compared_models[name]["checkpoint"] != model["checkpoint"]
+                or summary["fingerprint"] != manifest["fingerprint"]):
+            raise ValueError(f"Model or fingerprint mismatch: {task}/{name}")
+        inference = saved_config["inference"]
+        repeats = inference["responses_per_question"]
+        if repeats != config["inference"]["responses_per_question"]:
+            raise ValueError(f"Sample count differs from config: {task}/{name}")
+        item_bank = manifest["item_bank"]
+        check_hash(source / item_bank["path"], item_bank["sha256"])
+        rows = list(read_jsonl(source / model_root / "results.jsonl"))
+        selected = [{key: row.get(key) for key in ITEM_FIELDS} for row in rows]
+        selected_hash = hashlib.sha256(json.dumps(selected, sort_keys=True).encode("utf-8")).hexdigest()
+        if selected_hash != item_bank["selected_items_sha256"]:
+            raise ValueError(f"Question bank differs from manifest: {task}/{name}")
+        if [row["id"] for row in rows] != item_bank["selected_item_ids"]:
+            raise ValueError(f"Question selection differs from manifest: {task}/{name}")
+        current_contract = {
+            "item_bank": item_bank,
+            "inference": {key: inference[key] for key in (
+                "thinking", "temperature", "responses_per_question", "seed", "max_genlen", "instruction",
+            )},
+            "scoring": saved_config["scoring"], "scoring_input": summary["scoring_input"],
+            "judge_model": summary["judge_model"], "selection_seed": saved_config["selection_seed"],
+        }
+        if contract is None:
+            contract = current_contract
+            bank = {item["id"]: item for item in selected}
+        elif current_contract != contract:
+            raise ValueError(f"Models did not use the same evaluation settings: {task}/{name}")
+        for filename in ("results.jsonl", "summary.json", "manifest.json"):
+            path = model_root / filename
+            metadata["source_sha256"][str(path)] = hashlib.sha256((source / path).read_bytes()).hexdigest()
+        metadata["sources"][name] = {
+            "results_path": str(model_root / "results.jsonl"), "included_ids": list(bank),
+            "fingerprint": manifest["fingerprint"], "generated_at": manifest["created_at"],
+        }
         seen = set()
         counts = Counter()
         correct = Counter()
         item_counts = Counter()
-        for row in read_jsonl(results_path):
-            if row["id"] not in included:
-                continue
+        for row in rows:
             if row["id"] in seen:
                 raise ValueError(f"Duplicate eval question: {name}/{row['id']}")
             seen.add(row["id"])
             domain = bank[row["id"]]["category"]
             item_counts[domain] += 1
-            for field in ("question", "reference_answer", "term"):
-                if row[field] != bank[row["id"]][field]:
+            for field in ITEM_FIELDS:
+                if row.get(field) != bank[row["id"]][field]:
                     raise ValueError(f"Changed {field}: {row['id']}")
             indices = [sample["sample_index"] for sample in row["samples"]]
-            if sorted(indices) != list(range(config["inference"]["responses_per_question"])):
+            if sorted(indices) != list(range(repeats)):
                 raise ValueError(f"Missing or duplicate samples: {name}/{row['id']}")
             for sample in row["samples"]:
                 if sample["score"] not in (0, 1):
@@ -77,14 +127,14 @@ def export_eval(source, destination):
                 samples.append({
                     "model": name, "id": row["id"], "domain": domain,
                     "term": row["term"], "question": row["question"],
-                    "reference_answer": row["reference_answer"],
+                    "reference_answer": row["reference_answer"], "source_url": row.get("source_url"),
                     **{key: sample[key] for key in (
                         "sample_index", "model_response", "reasoning", "score",
                         "judge_explanation", "judge_model", "generated_tokens",
                         "think_closed", "turn_closed",
                     )},
                 })
-        if seen != included or seen != set(bank):
+        if seen != set(bank) or len(seen) != item_bank["items"]:
             raise ValueError(f"Incomplete question set: {name}")
         models.append({
             "model_name": name, "checkpoint": model["checkpoint"], "items": len(seen),
@@ -95,21 +145,20 @@ def export_eval(source, destination):
                 "correct_responses": correct[domain], "score": correct[domain] / counts[domain],
             } for domain in dict.fromkeys(item["category"] for item in bank.values())},
         })
-    for original in original_models:
-        computed = next(model for model in models if model["model_name"] == original["model_name"])
-        for domain, expected in [(None, original), *original["categories"].items()]:
-            actual = computed if domain is None else computed["categories"][domain]
-            for key in ("items", "responses_judged", "correct_responses", "score"):
-                if actual[key] != expected[key]:
-                    raise ValueError(f"Scores do not match the original plot: {computed['model_name']}/{domain}/{key}")
+        check_scores(models[-1], summary, f"{task}/{name}/summary")
+        check_scores(models[-1], compared_models[name], f"{task}/{name}/comparison")
+    metadata.update(contract)
+    metadata["domains"] = list(models[0]["categories"])
+    metadata["items"] = len(bank)
     metadata["models"] = models
-    metadata["default_models"] = [model["model_name"] for model in original_models]
+    metadata["default_models"] = [name for name in DEFAULT_MODELS if name in compared_models]
     metadata["exported_at"] = datetime.now(timezone.utc).isoformat()
     metadata["responses_per_question"] = config["inference"]["responses_per_question"]
-    metadata["original_plot_models"] = original_models
-    write_json(destination / "data/eval.json", {"metadata": metadata, "samples": samples})
+    filename = "eval" if task == "contingent_knowledge" else "gsm8k"
+    write_json(destination / f"data/{filename}.json", {"metadata": metadata, "samples": samples})
     (destination / "assets").mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source / PLOT.with_suffix(".png"), destination / "assets/contingent-knowledge.png")
+    plot_name = "contingent-knowledge" if task == "contingent_knowledge" else "gsm8k"
+    shutil.copyfile(source / root / "plots/model_domain_comparison.png", destination / f"assets/{plot_name}.png")
     return len(samples)
 
 
@@ -174,11 +223,16 @@ def export_handlabels(source, destination):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT.parent / "mwdf")
+    parser.add_argument("--eval-only", action="store_true", help="Refresh evaluations without changing training-data snapshots.")
     args = parser.parse_args()
     samples = export_eval(args.source, ROOT)
+    math_samples = export_eval(args.source, ROOT, "gsm8k")
+    print(f"Exported {samples} contingent-knowledge responses and {math_samples} GSM8K responses.")
+    if args.eval_only:
+        return
     conversations, identities = export_sft(args.source, ROOT)
     export_handlabels(args.source, ROOT)
-    print(f"Exported {samples} eval responses, {conversations} SFT conversations, {identities} identity files, and the hand-label snapshot.")
+    print(f"Exported {conversations} SFT conversations, {identities} identity files, and the hand-label snapshot.")
 
 
 if __name__ == "__main__":

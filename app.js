@@ -17,6 +17,11 @@ const domainNames = {
   experience: "Experience",
   famous_scientists_and_philosophers: "Famous Scientists and Philosophers",
   non_consc_idioms: "Non-Consciousness Idioms",
+  gsm8k: "GSM8K",
+};
+const evalSets = {
+  contingent_knowledge: { name: "Contingent Knowledge Eval", file: "eval", slug: "contingent-knowledge" },
+  gsm8k: { name: "GSM8K Eval", file: "gsm8k", slug: "gsm8k" },
 };
 
 function element(tag, className = "", text) {
@@ -126,16 +131,29 @@ window.addEventListener("hashchange", () => showView(true));
 window.addEventListener("popstate", () => showView(true));
 
 let evalData;
-let evalLoading = false;
+const evalCache = new Map();
+let evalLoadVersion = 0;
 let evalPage = 0;
-let selectedModels = new Set();
+let selectedModels;
 async function loadEval() {
-  if (evalData || evalLoading) return;
-  evalLoading = true;
+  const dataset = $("eval-dataset").value;
+  if (evalData?.metadata.evaluation_name === dataset) return;
+  const version = ++evalLoadVersion;
+  evalData = undefined;
+  $("eval-heading").textContent = evalSets[dataset].name;
+  $("eval-description").textContent = "Loading evaluation...";
+  $("eval-count").textContent = "Loading samples...";
+  for (const id of ["comparison-models", "eval-summary", "eval-samples", "eval-pagination"]) $(id).replaceChildren();
+  renderPlot([]);
+  $("plot-status").textContent = "Loading comparison...";
   try {
-    evalData = await getJSON("data/eval.json?v=20260907-comparisons");
-    selectedModels = new Set(evalData.metadata.default_models);
-    $("comparison-models").replaceChildren();
+    if (!evalCache.has(dataset)) evalCache.set(dataset, await getJSON(`data/${evalSets[dataset].file}.json?v=20260908-expanded`));
+    if (version !== evalLoadVersion) return;
+    evalData = evalCache.get(dataset);
+    selectedModels = new Set(selectedModels === undefined ? evalData.metadata.default_models :
+      [...selectedModels].filter((name) => evalData.metadata.models.some((model) => model.model_name === name)));
+    $("eval-description").textContent = `${evalData.metadata.items} questions per model, ${evalData.metadata.responses_per_question} sampled responses per question.`;
+    $("eval-data-download").href = `data/${evalSets[dataset].file}.json?v=20260908-expanded`;
     for (const model of evalData.metadata.models) {
       const name = model.model_name;
       modelNames[name] ||= name.replaceAll("_", " ");
@@ -156,13 +174,21 @@ async function loadEval() {
       label.append(checkbox, swatch, element("span", "", modelNames[name]));
       $("comparison-models").append(label);
     }
-    for (const [id, label] of Object.entries(domainNames)) $("eval-domain").add(new Option(label, id));
+    $("eval-domain").replaceChildren(new Option("All domains", "all"));
+    for (const id of evalData.metadata.domains) $("eval-domain").add(new Option(domainNames[id] || id, id));
+    $("eval-model").value = "all";
+    $("eval-verdict").value = "all";
+    $("eval-search").value = "";
     updateComparison();
   } catch (error) {
+    if (version !== evalLoadVersion) return;
+    evalData = undefined;
     $("eval-count").textContent = "Could not load samples";
+    $("plot-status").textContent = "Could not load comparison.";
     loadError("eval-samples", error, loadEval);
-  } finally { evalLoading = false; }
+  }
 }
+$("eval-dataset").addEventListener("change", loadEval);
 
 function updateComparison() {
   const models = evalData.metadata.models.filter((model) => selectedModels.has(model.model_name));
@@ -191,6 +217,9 @@ async function renderPlot(models) {
     plotURL = undefined;
     return;
   }
+  const dataset = evalSets[evalData.metadata.evaluation_name];
+  const domains = evalData.metadata.domains;
+  const plotTitle = evalData.metadata.evaluation_name === "gsm8k" ? "GSM8K Accuracy by Model" : "Contingent Knowledge Accuracy by Domain and Model";
   let chart;
   let url;
   try {
@@ -199,17 +228,20 @@ async function renderPlot(models) {
     canvas.height = 1000;
     const datasets = models.map((model) => ({
       label: modelNames[model.model_name], backgroundColor: modelColors[model.model_name],
-      data: Object.keys(domainNames).map((domain) => model.categories[domain].score),
+      data: domains.map((domain) => model.categories[domain].score),
       categoryPercentage: 0.8, barPercentage: 0.9,
     }));
     chart = new Chart(canvas, {
       type: "bar",
-      data: { labels: ["Philosophy of Mind", "Reification", "Experience", ["Famous Scientists", "and Philosophers"], ["Non-Consciousness", "Idioms"]], datasets },
+      data: { labels: domains.map((domain) => ({
+        famous_scientists_and_philosophers: ["Famous Scientists", "and Philosophers"],
+        non_consc_idioms: ["Non-Consciousness", "Idioms"],
+      })[domain] || domainNames[domain] || domain), datasets },
       options: {
         responsive: false, animation: false, devicePixelRatio: 1, events: [],
         layout: { padding: { top: 20, right: 24, bottom: 16, left: 16 } },
         plugins: {
-          title: { display: true, text: "Contingent Knowledge Accuracy by Domain and Model", color: "#22292a", font: { size: 26, weight: "normal" }, padding: { bottom: 26 } },
+          title: { display: true, text: plotTitle, color: "#22292a", font: { size: 26, weight: "normal" }, padding: { bottom: 26 } },
           legend: { position: "bottom", labels: { color: "#22292a", font: { size: 20 }, boxWidth: 24, padding: 24 } },
           tooltip: { enabled: false },
         },
@@ -249,9 +281,9 @@ async function renderPlot(models) {
     if (version !== plotVersion) { URL.revokeObjectURL(url); return; }
     if (plotURL) URL.revokeObjectURL(plotURL);
     plotURL = url;
-    plotFilename = `contingent-knowledge-${models.map((model) => model.model_name).join("-vs-")}.png`;
+    plotFilename = `${dataset.slug}-${models.map((model) => model.model_name).join("-vs-")}.png`;
     $("eval-plot").src = url;
-    $("eval-plot").alt = `Contingent knowledge accuracy by domain: ${models.map((model) => modelNames[model.model_name]).join(" versus ")}. Exact values follow below.`;
+    $("eval-plot").alt = `${plotTitle}: ${models.map((model) => modelNames[model.model_name]).join(" versus ")}. Exact values follow below.`;
     $("eval-plot").hidden = false;
     $("plot-status").hidden = true;
     $("plot-download").disabled = false;
@@ -282,7 +314,9 @@ function renderEvalSummary(models) {
   const thead = element("thead");
   thead.append(head);
   const tbody = element("tbody");
-  for (const [domain, label] of [...Object.entries(domainNames), ["all", "Overall"]]) {
+  const domains = evalData.metadata.domains.map((domain) => [domain, domainNames[domain] || domain]);
+  if (domains.length > 1) domains.push(["all", "Overall"]);
+  for (const [domain, label] of domains) {
     const row = element("tr");
     const heading = element("th", "", label);
     heading.scope = "row";
@@ -294,7 +328,10 @@ function renderEvalSummary(models) {
     tbody.append(row);
   }
   table.append(thead, tbody);
-  const provenance = element("p", "provenance", "Reaggregated September 7, 2026 from saved judgments with the updated 70-question bank. Seven items excluded; seeing_stars assigned to Experience. No regeneration or rejudging. Labels assess the saved answer and reasoning.");
+  const metadata = evalData.metadata;
+  const dates = [...new Set(models.map((model) => metadata.sources[model.model_name].generated_at.slice(0, 10)))].sort();
+  const inference = metadata.inference;
+  const provenance = element("p", "provenance", `Generated ${dates.join(", ")}. ${metadata.items} questions per model, ${metadata.responses_per_question} responses each; temperature ${inference.temperature}, thinking ${inference.thinking}, maximum ${inference.max_genlen} tokens. Scorer: ${metadata.judge_model}. Scoring input: ${metadata.scoring_input}.${metadata.selection_seed === null ? "" : ` Test-set selection seed: ${metadata.selection_seed}.`}`);
   $("eval-summary").replaceChildren(table, provenance);
 }
 
@@ -328,8 +365,15 @@ function renderEval() {
       if (row.reasoning) body.append(disclosure("Thinking", row.reasoning));
       body.append(element("h4", "", "Reference answer"), element("div", "text", row.reference_answer));
       const judge = element("div", "judge-explanation");
-      judge.append(element("h4", "", `Judge: ${row.judge_model}`), element("div", "text", row.judge_explanation));
+      judge.append(element("h4", "", `${row.judge_model === "gsm8k_exact_match" ? "Scorer" : "Judge"}: ${row.judge_model}`), element("div", "text", row.judge_explanation));
       body.append(judge, element("p", "provenance", `${row.id} | ${row.generated_tokens} generated tokens${row.turn_closed ? "" : " | Turn did not close"}${row.think_closed ? "" : " | Thinking did not close"}`));
+      if (row.source_url && /^https?:\/\//.test(row.source_url)) {
+        const source = element("a", "text-link", "Reference source");
+        source.href = row.source_url;
+        source.target = "_blank";
+        source.rel = "noopener noreferrer";
+        body.append(source);
+      }
     });
   });
   $("eval-samples").replaceChildren(...(nodes.length ? nodes : [element("p", "empty-result", "No responses match these filters.")]));
