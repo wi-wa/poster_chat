@@ -5,7 +5,7 @@ import unittest
 from collections import Counter
 from pathlib import Path
 
-from export_data import export_eval, write_json
+from export_data import export_eval, export_handlabels, write_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,8 +103,7 @@ class PublicDataTests(unittest.TestCase):
         self.assertEqual(len(rows), 200)
         self.assertEqual({entry["model"] for row in rows for entries in row["ratings"].values()
                           for entry in entries}, {
-            "z-ai/glm-5.3-flash", "openai/gpt-5.6-luna", "minimax/minimax-m3",
-            "google/gemma-4-31b-it", "meta/muse-glimmer-30b", "google/gemma-4-26b-a4b-it",
+            "openai/gpt-5.6-luna", "google/gemma-4-31b-it",
         })
         for row in rows:
             self.assertTrue(row["ratings"])
@@ -114,8 +113,40 @@ class PublicDataTests(unittest.TestCase):
         self.assertEqual(set(config), {"filters"})
         for item in config["filters"]:
             self.assertTrue((ROOT / item["prompt_path"]).is_file())
-        for name in ("rating_stats.json", "rated/hand_annotated_embedding_ratings.jsonl", "raw/hand_annotated_samples.jsonl"):
+        for name in ("rating_stats.json", "raw/hand_annotated_samples.jsonl"):
             self.assertTrue((ROOT / "data/judge" / name).is_file())
+        self.assertFalse((ROOT / "data/judge/rated/hand_annotated_embedding_ratings.jsonl").exists())
+        stats = json.loads((ROOT / "data/judge/rating_stats.json").read_text())
+        self.assertNotIn("embedding", stats["sources"])
+        for grouped in [stats["stats"], *stats["by_source"].values()]:
+            for models in grouped.values():
+                self.assertEqual(set(models), {"openai/gpt-5.6-luna", "google/gemma-4-31b-it"})
+
+
+class HandExportTests(unittest.TestCase):
+    def test_export_removes_embedding_artifacts_and_preserves_judge_statistics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, destination = Path(directory) / "source", Path(directory) / "public"
+            write_json(source / "configs/filter/judge.json", {"filters": []})
+            for name in ("rated/hand_annotated_rated.jsonl", "raw/hand_annotated_samples.jsonl"):
+                write_json(source / "data/judge" / name, {"text": "example"})
+            judge = {"openai/gpt-5.6-luna": {"n": 1, "mean": 2, "std": 0}}
+            embedding = {"embedding::openai/gpt-5.6-luna": {"n": 1, "mean": 3, "std": 0}}
+            stats = {"sources": {"judges": {"rated_rows": 1}, "embedding": {"path": "embedding/source"}},
+                     "stats": {"experience_descriptions": {**judge, **embedding}},
+                     "by_source": {"judges": {"experience_descriptions": judge},
+                                   "embedding/source": {"experience_descriptions": embedding}}}
+            write_json(source / "data/judge/rating_stats.json", stats)
+            obsolete = destination / "data/judge/rated/hand_annotated_embedding_ratings.jsonl"
+            write_json(obsolete, {"text": "old overlay"})
+            for _ in range(2):
+                export_handlabels(source, destination)
+                exported = json.loads((destination / "data/judge/rating_stats.json").read_text())
+                self.assertFalse(obsolete.exists())
+                self.assertEqual(exported["sources"], {"judges": {"rated_rows": 1}})
+                self.assertEqual(exported["stats"], {"experience_descriptions": judge})
+                self.assertEqual(exported["by_source"], {"judges": {"experience_descriptions": judge}})
+                self.assertEqual(json.loads((source / "data/judge/rating_stats.json").read_text()), stats)
 
 
 class ExportValidationTests(unittest.TestCase):

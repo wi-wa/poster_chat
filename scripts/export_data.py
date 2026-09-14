@@ -207,9 +207,7 @@ def export_sft(source, destination, count=100):
 def export_handlabels(source, destination):
     paths = [
         "data/judge/rated/hand_annotated_rated.jsonl",
-        "data/judge/rated/hand_annotated_embedding_ratings.jsonl",
         "data/judge/raw/hand_annotated_samples.jsonl",
-        "data/judge/rating_stats.json",
     ]
     config = json.loads((source / "configs/filter/judge.json").read_text())
     write_json(destination / "configs/filter/judge.json", {"filters": config["filters"]})
@@ -218,6 +216,19 @@ def export_handlabels(source, destination):
         target = destination / path
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / path, target)
+
+    stats_path = "data/judge/rating_stats.json"
+    stats = json.loads((source / stats_path).read_text())
+    stats["sources"].pop("embedding", None)
+    for grouped in [stats["stats"], *stats.get("by_source", {}).values()]:
+        for models in grouped.values():
+            for model in list(models):
+                if model.startswith("embedding::"):
+                    del models[model]
+    stats["by_source"] = {path: grouped for path, grouped in stats.get("by_source", {}).items()
+                          if any(grouped.values())}
+    write_json(destination / stats_path, stats)
+    (destination / "data/judge/rated/hand_annotated_embedding_ratings.jsonl").unlink(missing_ok=True)
 
 
 def main():
