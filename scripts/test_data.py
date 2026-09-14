@@ -101,6 +101,11 @@ class PublicDataTests(unittest.TestCase):
         path = ROOT / "data/judge/rated/hand_annotated_rated.jsonl"
         rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
         self.assertEqual(len(rows), 200)
+        self.assertEqual({entry["model"] for row in rows for entries in row["ratings"].values()
+                          for entry in entries}, {
+            "z-ai/glm-5.3-flash", "openai/gpt-5.6-luna", "minimax/minimax-m3",
+            "google/gemma-4-31b-it", "meta/muse-glimmer-30b", "google/gemma-4-26b-a4b-it",
+        })
         for row in rows:
             self.assertTrue(row["ratings"])
             for label in ("pom-rating", "reification-rating", "experience-rating"):

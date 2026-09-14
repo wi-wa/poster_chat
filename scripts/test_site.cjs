@@ -204,8 +204,8 @@ async function main() {
     await openView(page, "Handlabeled Viewer");
     const hand = page.frameLocator("#hand-frame");
     await hand.locator("#labelsStatusText").filter({ hasText: "200 samples" }).waitFor();
-    assert.equal(await hand.locator("#overallValue").textContent(), "99.5%");
-    assert.equal(await hand.locator(".correlation-table tbody tr").count(), 4);
+    assert.equal(await hand.locator("#overallValue").textContent(), "98.5%");
+    assert.equal(await hand.locator(".correlation-table tbody tr").count(), 8);
     await page.screenshot({ path: path.join(screenshots, "handlabeled-desktop.png") });
     const before = await hand.locator("#thresholdValue").textContent();
     await hand.locator("#thresholdPlus").click();
@@ -217,7 +217,7 @@ async function main() {
     await hand.locator("#labelsFilterSelect").selectOption("reified_experience");
     await hand.locator("#labelsSortSelect").selectOption("models");
     await hand.locator("#modelStatsList input[type=checkbox]").first().uncheck();
-    assert.match(await hand.locator("#correlationCaption").textContent(), /3 checked/);
+    assert.match(await hand.locator("#correlationCaption").textContent(), /7 checked/);
     const popupReady = page.waitForEvent("popup");
     await hand.locator("#distributionButton").click();
     const popup = await popupReady;
