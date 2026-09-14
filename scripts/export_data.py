@@ -206,6 +206,7 @@ def export_sft(source, destination, count=100):
 
 def export_handlabels(source, destination):
     paths = [
+        "data/judge/rated/fineweb_edu_balanced_rated.jsonl",
         "data/judge/rated/hand_annotated_rated.jsonl",
         "data/judge/raw/hand_annotated_samples.jsonl",
     ]

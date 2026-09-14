@@ -128,7 +128,7 @@ class HandExportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             source, destination = Path(directory) / "source", Path(directory) / "public"
             write_json(source / "configs/filter/judge.json", {"filters": []})
-            for name in ("rated/hand_annotated_rated.jsonl", "raw/hand_annotated_samples.jsonl"):
+            for name in ("rated/hand_annotated_rated.jsonl", "rated/fineweb_edu_balanced_rated.jsonl", "raw/hand_annotated_samples.jsonl"):
                 write_json(source / "data/judge" / name, {"text": "example"})
             judge = {"openai/gpt-5.6-luna": {"n": 1, "mean": 2, "std": 0}}
             embedding = {"embedding::openai/gpt-5.6-luna": {"n": 1, "mean": 3, "std": 0}}
@@ -141,6 +141,10 @@ class HandExportTests(unittest.TestCase):
             write_json(obsolete, {"text": "old overlay"})
             for _ in range(2):
                 export_handlabels(source, destination)
+                self.assertEqual(
+                    (source / "data/judge/rated/fineweb_edu_balanced_rated.jsonl").read_bytes(),
+                    (destination / "data/judge/rated/fineweb_edu_balanced_rated.jsonl").read_bytes(),
+                )
                 exported = json.loads((destination / "data/judge/rating_stats.json").read_text())
                 self.assertFalse(obsolete.exists())
                 self.assertEqual(exported["sources"], {"judges": {"rated_rows": 1}})

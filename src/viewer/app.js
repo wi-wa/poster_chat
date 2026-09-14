@@ -1,4 +1,5 @@
 const DATA_URLS = [
+  "../../data/judge/rated/fineweb_edu_balanced_rated.jsonl",
   "../../data/judge/rated/hand_annotated_rated.jsonl",
 ];
 
