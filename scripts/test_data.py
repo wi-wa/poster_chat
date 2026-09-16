@@ -115,20 +115,33 @@ class PublicDataTests(unittest.TestCase):
             self.assertTrue((ROOT / item["prompt_path"]).is_file())
         for name in ("rating_stats.json", "raw/hand_annotated_samples.jsonl"):
             self.assertTrue((ROOT / "data/judge" / name).is_file())
-        self.assertFalse((ROOT / "data/judge/rated/hand_annotated_embedding_ratings.jsonl").exists())
+        overlay = [json.loads(line) for line in
+                   (ROOT / "data/judge/rated/hand_annotated_embedding_ratings.jsonl").read_text().splitlines()
+                   if line.strip()]
+        self.assertEqual(len(overlay), 200)
+        self.assertEqual({row["text"] for row in overlay}, {row["text"] for row in rows})
+        embedding_models = {"embedding::openai/gpt-5.6-luna", "embedding::google/gemma-4-31b-it"}
+        for row in overlay:
+            self.assertEqual(set(row["ratings"]), {item["name"] for item in config["filters"]})
+            for entries in row["ratings"].values():
+                self.assertEqual({entry["model"] for entry in entries}, embedding_models)
+                self.assertTrue(all(0 <= entry["rating"] <= 10 for entry in entries))
+                self.assertTrue(all("good_checkpoint/final" in entry["explanation"] for entry in entries))
         stats = json.loads((ROOT / "data/judge/rating_stats.json").read_text())
-        self.assertNotIn("embedding", stats["sources"])
-        for grouped in [stats["stats"], *stats["by_source"].values()]:
-            for models in grouped.values():
-                self.assertEqual(set(models), {"openai/gpt-5.6-luna", "google/gemma-4-31b-it"})
+        self.assertGreater(stats["sources"]["embedding"]["documents"], 200)
+        for models in stats["stats"].values():
+            self.assertEqual(set(models), embedding_models | {"openai/gpt-5.6-luna", "google/gemma-4-31b-it"})
+            for model in embedding_models:
+                self.assertGreater(models[model]["std"], 0)
+                self.assertEqual(models[model]["n"], stats["sources"]["embedding"]["documents"])
 
 
 class HandExportTests(unittest.TestCase):
-    def test_export_removes_embedding_artifacts_and_preserves_judge_statistics(self):
+    def test_export_preserves_embedding_overlay_and_all_statistics(self):
         with tempfile.TemporaryDirectory() as directory:
             source, destination = Path(directory) / "source", Path(directory) / "public"
             write_json(source / "configs/filter/judge.json", {"filters": []})
-            for name in ("rated/hand_annotated_rated.jsonl", "rated/fineweb_edu_balanced_rated.jsonl", "raw/hand_annotated_samples.jsonl"):
+            for name in ("rated/hand_annotated_rated.jsonl", "rated/fineweb_edu_balanced_rated.jsonl", "raw/hand_annotated_samples.jsonl", "rated/hand_annotated_embedding_ratings.jsonl"):
                 write_json(source / "data/judge" / name, {"text": "example"})
             judge = {"openai/gpt-5.6-luna": {"n": 1, "mean": 2, "std": 0}}
             embedding = {"embedding::openai/gpt-5.6-luna": {"n": 1, "mean": 3, "std": 0}}
@@ -146,11 +159,17 @@ class HandExportTests(unittest.TestCase):
                     (destination / "data/judge/rated/fineweb_edu_balanced_rated.jsonl").read_bytes(),
                 )
                 exported = json.loads((destination / "data/judge/rating_stats.json").read_text())
-                self.assertFalse(obsolete.exists())
-                self.assertEqual(exported["sources"], {"judges": {"rated_rows": 1}})
-                self.assertEqual(exported["stats"], {"experience_descriptions": judge})
-                self.assertEqual(exported["by_source"], {"judges": {"experience_descriptions": judge}})
+                self.assertEqual(obsolete.read_bytes(),
+                                 (source / "data/judge/rated/hand_annotated_embedding_ratings.jsonl").read_bytes())
+                self.assertEqual(exported, stats)
                 self.assertEqual(json.loads((source / "data/judge/rating_stats.json").read_text()), stats)
+
+            corpus = destination / "data/judge/rated/fineweb_edu_balanced_rated.jsonl"
+            write_json(corpus, {"text": "Existing public corpus snapshot"})
+            saved = corpus.read_bytes()
+            export_handlabels(source, destination, include_corpus=False)
+            self.assertEqual(corpus.read_bytes(), saved)
+            self.assertEqual(json.loads((destination / "data/judge/rating_stats.json").read_text()), stats)
 
 
 class ExportValidationTests(unittest.TestCase):

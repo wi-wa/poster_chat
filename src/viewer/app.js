@@ -3,8 +3,12 @@ const DATA_URLS = [
   "../../data/judge/rated/hand_annotated_rated.jsonl",
 ];
 
+const RATING_OVERLAY_URLS = [
+  "../../data/judge/rated/hand_annotated_embedding_ratings.jsonl",
+];
+
 const CONFIG_URL = "../../configs/filter/judge.json";
-// Per-filter, per-model rating moments over the full corpus, precomputed by
+// Per-filter, per-model rating moments over reference corpora, precomputed by
 // scripts/filter/compute_rating_stats.py. The z-values knob standardizes
 // against these rather than against whatever subset a page happens to load, so
 // a z-value means the same thing on both pages.
@@ -183,6 +187,31 @@ function parseJsonl(text) {
   }
 
   return rows;
+}
+
+async function mergeEmbeddingOverlays(documents) {
+  const byText = new Map(documents.map((doc) => [doc.text, doc]));
+  for (const url of RATING_OVERLAY_URLS) {
+    try {
+      const response = await fetch(`${url}?t=${Date.now()}`);
+      if (response.status === 404) continue;
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      for (const overlay of parseJsonl(await response.text())) {
+        const doc = byText.get(overlay.text);
+        if (!doc) continue;
+        for (const [filter, models] of Object.entries(overlay.ratings)) {
+          const ratings = (doc.ratings[filter] ??= {});
+          for (const [model, entry] of Object.entries(models)) {
+            if (model.startsWith("embedding::") && !(model in ratings)) {
+              ratings[model] = entry;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`Could not load embedding overlay ${url}: ${error.message}`);
+    }
+  }
 }
 
 function getEntries(doc) {
@@ -938,6 +967,7 @@ async function loadAnnotations() {
     labels: row.labels,
   }));
 
+  await mergeEmbeddingOverlays(items.filter((item) => item.doc).map((item) => item.doc));
   state.annotations = { items, badLines: loaded.badLines, source };
   return state.annotations;
 }
@@ -1821,7 +1851,7 @@ function renderThresholdNote() {
   if (state.zMode) {
     els.thresholdNote.append(
       document.createTextNode(
-        " Each model is standardized against its own full-corpus mean and standard " +
+        " Each model is standardized against its own reference-corpus mean and standard " +
           "deviation before aggregating, so x is in standard deviations and the " +
           "slider spans this filter's observed range.",
       ),
@@ -1840,7 +1870,8 @@ function describeRatingStatsSources() {
   }
   if (meta.embedding?.documents) {
     parts.push(
-      `embedding heads over ${formatNumber(meta.embedding.documents)} tagged documents`,
+      `embedding heads over ${formatNumber(meta.embedding.documents)} reference documents` +
+      (meta.embedding.path ? ` (${meta.embedding.path})` : ""),
     );
   }
   return parts.length > 0 ? ` Reference distribution: ${parts.join("; ")}.` : "";
@@ -1855,7 +1886,7 @@ function renderZNotes() {
     warning = true;
   } else if (state.zMode) {
     text =
-      "z = (rating − corpus mean) / corpus standard deviation, computed per " +
+      "z = (rating − reference mean) / reference standard deviation, computed per " +
       "filter per model." + describeRatingStatsSources();
     const missing = [...state.missingStatModels];
     if (missing.length > 0) {
@@ -2114,6 +2145,7 @@ async function loadDocuments() {
       continue;
     }
 
+    await mergeEmbeddingOverlays(documents);
     state.documents = documents;
     state.visible = documents;
     return;

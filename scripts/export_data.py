@@ -204,12 +204,15 @@ def export_sft(source, destination, count=100):
     return len(selected), len(identities)
 
 
-def export_handlabels(source, destination):
+def export_handlabels(source, destination, include_corpus=True):
     paths = [
-        "data/judge/rated/fineweb_edu_balanced_rated.jsonl",
         "data/judge/rated/hand_annotated_rated.jsonl",
         "data/judge/raw/hand_annotated_samples.jsonl",
+        "data/judge/rated/hand_annotated_embedding_ratings.jsonl",
+        "data/judge/rating_stats.json",
     ]
+    if include_corpus:
+        paths.append("data/judge/rated/fineweb_edu_balanced_rated.jsonl")
     config = json.loads((source / "configs/filter/judge.json").read_text())
     write_json(destination / "configs/filter/judge.json", {"filters": config["filters"]})
     paths.extend(item["prompt_path"] for item in config["filters"])
@@ -218,25 +221,19 @@ def export_handlabels(source, destination):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source / path, target)
 
-    stats_path = "data/judge/rating_stats.json"
-    stats = json.loads((source / stats_path).read_text())
-    stats["sources"].pop("embedding", None)
-    for grouped in [stats["stats"], *stats.get("by_source", {}).values()]:
-        for models in grouped.values():
-            for model in list(models):
-                if model.startswith("embedding::"):
-                    del models[model]
-    stats["by_source"] = {path: grouped for path, grouped in stats.get("by_source", {}).items()
-                          if any(grouped.values())}
-    write_json(destination / stats_path, stats)
-    (destination / "data/judge/rated/hand_annotated_embedding_ratings.jsonl").unlink(missing_ok=True)
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT.parent / "mwdf")
     parser.add_argument("--eval-only", action="store_true", help="Refresh evaluations without changing training-data snapshots.")
+    parser.add_argument("--hand-only", action="store_true", help="Refresh hand ratings and statistics without replacing the public corpus or other snapshots.")
     args = parser.parse_args()
+    if args.hand_only:
+        if args.eval_only:
+            parser.error("--hand-only and --eval-only cannot be combined")
+        export_handlabels(args.source, ROOT, include_corpus=False)
+        print("Exported hand ratings, embedding overlay, and normalization statistics.")
+        return
     samples = export_eval(args.source, ROOT)
     math_samples = export_eval(args.source, ROOT, "gsm8k")
     print(f"Exported {samples} contingent-knowledge responses and {math_samples} GSM8K responses.")

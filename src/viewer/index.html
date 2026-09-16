@@ -58,7 +58,7 @@
                 <option value="models">Model disagreement (variance)</option>
               </select>
             </label>
-            <label class="control control-toggle" title="Standardize each model's ratings within each filter against the full corpus, then aggregate the z-values">
+            <label class="control control-toggle" title="Standardize each model's ratings within each filter against its reference corpus, then aggregate the z-values">
               <span>Scale</span>
               <span class="toggle-row">
                 <input id="labelsZToggle" type="checkbox" />
@@ -183,7 +183,7 @@
               <select id="filterSelect"></select>
             </label>
 
-            <label class="control control-toggle" title="Standardize each model's ratings within each filter against the full corpus, then aggregate the z-values">
+            <label class="control control-toggle" title="Standardize each model's ratings within each filter against its reference corpus, then aggregate the z-values">
               <span>Scale</span>
               <span class="toggle-row">
                 <input id="dataZToggle" type="checkbox" />
@@ -248,6 +248,6 @@
       </div>
     </div>
 
-    <script src="./app.js?v=24"></script>
+    <script src="./app.js?v=25-good-checkpoint"></script>
   </body>
 </html>
