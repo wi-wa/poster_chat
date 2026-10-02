@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>Chat and Model Evaluations</title>
-  <link rel="stylesheet" href="styles.css?v=20260907-comparisons">
+  <link rel="stylesheet" href="styles.css?v=20261002-chat-models">
   <script src="assets/lucide.min.js" defer></script>
   <script src="assets/chart.umd.js" defer></script>
-  <script src="app.js?v=20260908-expanded" defer></script>
+  <script src="benchmarks.js?v=20261002-ck2" defer></script>
+  <script src="app.js?v=20261002-chat-models" defer></script>
 </head>
 <body>
   <header id="view-navigation" class="site-header" hidden>
@@ -19,11 +20,15 @@
       <nav class="home-menu" aria-label="Project sections">
         <a id="menu-chat" class="menu-button" href="#chat" data-view="chat" aria-labelledby="menu-chat-title" aria-describedby="menu-chat-description">
           <h2 id="menu-chat-title">Chat</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
-          <p id="menu-chat-description">A conversation with annulus-2.5b-reif, with optional thinking.</p>
+          <p id="menu-chat-description">A conversation with the exp, reif or control model after DPO, with optional thinking.</p>
         </a>
         <a id="menu-eval" class="menu-button" href="#eval" data-view="eval" aria-labelledby="menu-eval-title" aria-describedby="menu-eval-description">
           <h2 id="menu-eval-title">Contingent Knowledge Eval</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
           <p id="menu-eval-description">Contingent knowledge and GSM8K scores across five model checkpoints.</p>
+        </a>
+        <a id="menu-benchmarks" class="menu-button" href="#benchmarks" data-view="benchmarks" aria-labelledby="menu-benchmarks-title" aria-describedby="menu-benchmarks-description">
+          <h2 id="menu-benchmarks-title">Benchmarks</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
+          <p id="menu-benchmarks-description">The final exp, reif and control models after SFT and after DPO, on every training environment, IFEval and contingent knowledge.</p>
         </a>
         <a id="menu-handlabeled" class="menu-button" href="#handlabeled" data-view="handlabeled" aria-labelledby="menu-handlabeled-title" aria-describedby="menu-handlabeled-description">
           <h2 id="menu-handlabeled-title">Handlabeled Viewer</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
@@ -44,13 +49,14 @@
       <div class="chat-controls">
         <span id="chat-connection" class="connection" role="status">Checking connection...</span>
         <div class="control-row">
+          <label class="inline-label">Model<select id="chat-model"></select></label>
           <label class="toggle"><input id="chat-thinking" type="checkbox">Thinking</label>
           <label class="inline-label">Max tokens<input id="chat-max-tokens" type="number" min="1" max="2047" step="1" value="256"></label>
           <button id="chat-clear" class="icon-button" title="New conversation" aria-label="New conversation"><i data-lucide="square-pen"></i></button>
         </div>
       </div>
       <div id="chat-messages" class="chat-messages" role="log" aria-label="Conversation" aria-live="polite">
-        <div id="chat-empty" class="chat-empty"><h2>annulus-2.5b-reif</h2><p>DPO iteration 6</p></div>
+        <div id="chat-empty" class="chat-empty"><h2>Annulus</h2><p></p></div>
       </div>
       <form id="chat-form" class="composer">
         <label class="sr-only" for="chat-input">Message Annulus</label>
@@ -83,6 +89,20 @@
       </div>
       <div class="results-bar"><span id="eval-count" role="status" aria-live="polite">Loading samples...</span><span id="eval-pagination" class="pagination"></span></div>
       <div id="eval-samples" class="sample-list"></div>
+    </section>
+
+    <section id="benchmarks" aria-label="Benchmarks" class="panel content-panel" data-panel tabindex="-1" hidden>
+      <div class="section-heading"><div><h2>Benchmarks</h2><p>Three 7B models that differ only in how their pretraining corpus was filtered, each after SFT and after DPO. <span id="bench-progress"></span></p></div>
+        <div class="plot-actions"><a class="icon-button" href="data/benchmarks.json" download title="Download benchmark data" aria-label="Download benchmark data"><i data-lucide="download"></i></a></div>
+      </div>
+      <div class="filters">
+        <label>Answer mode<select id="bench-mode"><option value="plain">Plain answer</option><option value="think">Thinking</option></select></label>
+        <label>Stage<select id="bench-stage"><option value="dpo1">DPO</option><option value="sft">SFT</option></select></label>
+      </div>
+      <figure class="bench-figure"><canvas id="bench-chart" role="img" aria-label="Accuracy by benchmark"></canvas><p id="bench-chart-status" class="plot-status" role="status" aria-live="polite"></p></figure>
+      <div class="browser-heading"><h3>All checkpoints</h3></div>
+      <div id="bench-table" class="table-scroll"></div>
+      <details class="plot-values"><summary>How these were measured</summary><p id="bench-protocol" class="bench-protocol"></p></details>
     </section>
 
     <section id="handlabeled" aria-label="Handlabeled Viewer" class="panel viewer-panel" data-panel tabindex="-1" hidden>

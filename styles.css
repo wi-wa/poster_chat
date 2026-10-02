@@ -147,3 +147,18 @@ select { max-width:310px; }
   #chat-status { order:3; flex-basis:100%; }
   .chat-message.assistant { padding-left:4px; padding-right:4px; }
 }
+
+/* Benchmarks view */
+.bench-figure { position:relative; height:420px; margin:6px 0 26px; }
+.bench-table th,.bench-table td { padding:7px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.bench-table thead th { font-weight:600; text-align:center; color:var(--muted); font-size:12px; }
+.bench-table thead th.group { color:var(--ink); font-size:13px; border-bottom:0; }
+.bench-table tbody th { text-align:left; font-weight:500; }
+.bench-table td { text-align:right; font-variant-numeric:tabular-nums; }
+.bench-table td.best { font-weight:700; }
+.bench-table td.pending { color:var(--muted); text-align:center; }
+.bench-table tr.na td { color:var(--muted); }
+.bench-table tr.average th,.bench-table tr.average td { border-top:2px solid var(--line); font-weight:600; }
+.bench-table .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:baseline; }
+.bench-protocol { color:var(--muted); font-size:13px; max-width:880px; margin-top:10px; }
+@media (max-width:700px) { .bench-figure { height:340px; } }

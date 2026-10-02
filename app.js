@@ -109,6 +109,7 @@ function showView(moveFocus = false) {
   $("view-navigation").hidden = selected === "home";
   $("home-link").hidden = selected === "home";
   if (selected === "eval") loadEval();
+  if (selected === "benchmarks") window.loadBenchmarks?.();
   if (selected === "sft") loadSft();
   if (selected === "handlabeled" && !$("hand-frame").getAttribute("src")) {
     $("hand-frame").src = $("hand-frame").dataset.src;
@@ -471,8 +472,17 @@ const configReady = getJSON("site.json", { cache: "no-store" }).then((config) =>
   config.chat_base_url = url.href.replace(/\/$/, "");
   chatConfig = config;
   $("api-link").href = `${config.chat_base_url.replace(/\/v1$/, "")}/api`;
+  $("chat-model").replaceChildren(...config.models.map((model) => new Option(model.name, model.id)));
+  showChatModel();
   return config;
 });
+
+function showChatModel() {
+  const model = chatConfig?.models.find((candidate) => candidate.id === $("chat-model").value);
+  if (!model) return;
+  emptyChat.querySelector("h2").textContent = model.id;
+  emptyChat.querySelector("p").textContent = model.description;
+}
 
 function connection(online) {
   $("chat-connection").textContent = online ? "Connected" : "Chat is temporarily offline";
@@ -498,6 +508,7 @@ $("chat-form").addEventListener("submit", async (event) => {
   chatBusy = true;
   $("chat-send").disabled = true;
   $("chat-clear").disabled = true;
+  $("chat-model").disabled = true;
   $("chat-input").readOnly = true;
   emptyChat.remove();
   const userNode = chatMessage("user", content);
@@ -509,7 +520,7 @@ $("chat-form").addEventListener("submit", async (event) => {
     const messages = [...chatHistory, { role: "user", content }];
     const response = await getJSON(`${config.chat_base_url}/chat/completions`, {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(240000),
-      body: JSON.stringify({ model: config.model, messages, thinking: $("chat-thinking").checked,
+      body: JSON.stringify({ model: $("chat-model").value, messages, thinking: $("chat-thinking").checked,
         max_completion_tokens: Number($("chat-max-tokens").value) }),
     });
     const choice = response.choices?.[0];
@@ -531,6 +542,7 @@ $("chat-form").addEventListener("submit", async (event) => {
     chatBusy = false;
     $("chat-send").disabled = false;
     $("chat-clear").disabled = false;
+    $("chat-model").disabled = false;
     $("chat-input").readOnly = false;
     if (!$("chat").hidden) $("chat-input").focus();
   }
@@ -547,6 +559,11 @@ $("chat-clear").addEventListener("click", () => {
   $("chat-input").value = "";
   $("chat-status").textContent = "";
   $("chat-input").focus();
+});
+// Each model gets its own conversation: another model's replies are not its own.
+$("chat-model").addEventListener("change", () => {
+  showChatModel();
+  $("chat-clear").click();
 });
 
 showView();

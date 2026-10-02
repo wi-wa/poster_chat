@@ -136,6 +136,38 @@ class PublicDataTests(unittest.TestCase):
                 self.assertEqual(models[model]["n"], stats["sources"]["embedding"]["documents"])
 
 
+class BenchmarkDataTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.data = json.loads((ROOT / "data/benchmarks.json").read_text())
+
+    def test_every_result_is_consistent(self):
+        metadata = self.data["metadata"]
+        labels = {checkpoint["label"] for checkpoint in metadata["checkpoints"]}
+        benchmarks = {benchmark["id"] for benchmark in metadata["benchmarks"]}
+        for label, scores in self.data["results"].items():
+            self.assertIn(label, labels)
+            for benchmark, modes in scores.items():
+                self.assertIn(benchmark, benchmarks)
+                self.assertLessEqual(set(modes), {"plain", "think"})
+                for entry in modes.values():
+                    self.assertGreaterEqual(entry["accuracy"], 0)
+                    self.assertLessEqual(entry["accuracy"], 1)
+                    if entry.get("correct") is not None and entry.get("evaluated"):
+                        self.assertAlmostEqual(entry["accuracy"], entry["correct"] / entry["evaluated"])
+
+    def test_every_checkpoint_has_contingent_knowledge_and_complete_modes(self):
+        metadata = self.data["metadata"]
+        self.assertEqual(len(metadata["checkpoints"]), 6)
+        for checkpoint in metadata["checkpoints"]:
+            self.assertIsNotNone(checkpoint["checkpoint"], checkpoint["label"])
+            scores = self.data["results"][checkpoint["label"]]
+            self.assertIn("contingent_knowledge", scores, checkpoint["label"])
+            for benchmark, modes in scores.items():
+                expected = {"think"} if benchmark == "contingent_knowledge" else {"plain", "think"}
+                self.assertEqual(set(modes), expected, (checkpoint["label"], benchmark))
+
+
 class HandExportTests(unittest.TestCase):
     def test_export_preserves_embedding_overlay_and_all_statistics(self):
         with tempfile.TemporaryDirectory() as directory:

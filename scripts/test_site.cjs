@@ -42,7 +42,7 @@ async function plotPixels(page) {
 
 async function checkMenu(page) {
   assert.equal(await page.locator("#home").isVisible(), true);
-  assert.equal(await page.locator(".home-menu a").count(), 4);
+  assert.equal(await page.locator(".home-menu a").count(), 5);
   assert.equal(await page.getByRole("tab").count(), 0);
   assert.equal(await page.locator("#home-link").isVisible(), false);
   assert.equal(await page.locator("#view-navigation").isVisible(), false);
@@ -253,6 +253,7 @@ async function main() {
     await page.locator(".chat-message.assistant").waitFor();
     assert.equal(requests[0].thinking, false);
     assert.equal(requests[0].max_completion_tokens, 256);
+    assert.equal(requests[0].model, await page.locator("#chat-model").inputValue());
     assert.equal(await page.locator(".chat-message b").count(), 0);
     await page.locator("#chat-thinking").check();
     await page.locator("#chat-input").fill("And with thinking?");
@@ -273,12 +274,17 @@ async function main() {
       assert.equal(await page.locator("#chat-send").isEnabled(), true);
     }
     apiMode = "ok";
+    const secondModel = await page.locator("#chat-model option").nth(1).getAttribute("value");
+    await page.locator("#chat-model").selectOption(secondModel);
+    assert.equal(await page.locator(".chat-message").count(), 0);
+    await waitText(page, "#chat-empty h2", secondModel);
     await page.locator("#chat-clear").click();
     assert.equal(await page.locator(".chat-message").count(), 0);
     await page.locator("#chat-input").fill("A new conversation");
     await page.locator("#chat-input").press("Enter");
     await page.locator(".chat-message.assistant").waitFor();
     assert.equal(requests.at(-1).messages.length, 1);
+    assert.equal(requests.at(-1).model, secondModel);
 
     await page.getByRole("link", { name: "Back to menu", exact: true }).click();
     assert.equal(await page.locator("#menu-chat").evaluate((link) => link === document.activeElement), true);

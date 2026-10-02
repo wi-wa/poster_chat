@@ -1,4 +1,20 @@
 {
   "chat_base_url": "https://761ae11a7e7edf1c40.gradio.live/v1",
-  "model": "annulus-2.5b-reif"
+  "models": [
+    {
+      "id": "annulus-7b-exp-dpo",
+      "name": "Exp",
+      "description": "Pretrained on the most strictly filtered corpus; SFT, then one DPO iteration"
+    },
+    {
+      "id": "annulus-7b-reif-dpo",
+      "name": "Reif",
+      "description": "Pretrained on the reification-filtered corpus; SFT, then one DPO iteration"
+    },
+    {
+      "id": "annulus-7b-control-dpo",
+      "name": "Control",
+      "description": "Pretrained on the unfiltered corpus; SFT, then one DPO iteration"
+    }
+  ]
 }

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import random
+import re
 import shutil
 from collections import Counter
 from datetime import datetime, timezone
@@ -162,6 +163,105 @@ def export_eval(source, destination, task="contingent_knowledge"):
     return len(samples)
 
 
+BENCHMARK_MODELS = [
+    {"id": "exp", "name": "Exp", "description": "Pretrained on the most strictly filtered corpus"},
+    {"id": "reif", "name": "Reif", "description": "Pretrained on the reification-filtered corpus"},
+    {"id": "control", "name": "Control", "description": "Pretrained on the unfiltered corpus"},
+]
+BENCHMARK_STAGES = [{"id": "sft", "name": "SFT"}, {"id": "dpo1", "name": "DPO"}]
+# (id, display name, group, scoring note); environments are those of the RL training mix.
+BENCHMARKS = [
+    ("gsm8k", "GSM8K", "Math", "Grade-school word problems, exact numeric match"),
+    ("svamp", "SVAMP", "Math", "Word problems, exact numeric match"),
+    ("math", "MATH", "Math", "Competition math, levels 1-5, equivalent final answer"),
+    ("tabmwp", "TabMWP", "Math", "Word problems over tables, exact value"),
+    ("arithmetic_hard_mixed", "Arithmetic", "Math", "Mixed multi-digit arithmetic"),
+    ("equations", "Equations", "Math", "Solve a linear equation for x"),
+    ("countdown", "Countdown", "Reasoning", "Reach a target with 3-4 numbers"),
+    ("knights_knaves", "Knights & Knaves", "Reasoning", "Three-person logic puzzles"),
+    ("reasoning_gym", "Reasoning Gym", "Reasoning", "Mix of Reasoning Gym tasks"),
+    ("arc_easy", "ARC-Easy", "Knowledge", "Grade-school science multiple choice"),
+    ("identity", "Identity", "Knowledge", "Questions about the model itself"),
+    ("if_rlvr", "IF-RLVR", "Instructions", "Verifiable instruction constraints"),
+    ("ifeval", "IFEval", "Instructions", "IFEval-lite, strict"),
+    ("contingent_knowledge", "Contingent knowledge", "Knowledge", "100 questions, 2 samples each at temperature 1 with thinking, LLM-judged"),
+]
+
+
+def export_benchmarks(source, destination):
+    """Collect the final evaluation suite (mwdf artifacts/evals/final, contingent knowledge) into
+    data/benchmarks.json. Missing results are left out, so a partial export shows what is done."""
+    final = source / "artifacts/evals/final"
+    config = json.loads((source / "configs/evals/contingent_knowledge_eval.json").read_text())
+    checkpoints, results = [], {}
+    for model in BENCHMARK_MODELS:
+        for stage in BENCHMARK_STAGES:
+            label = f"{model['id']}_{stage['id']}"
+            entry = {"label": label, "model": model["id"], "stage": stage["id"], "checkpoint": None, "step": None}
+            scores = {}
+            for benchmark_id, *_ in BENCHMARKS:
+                if benchmark_id == "contingent_knowledge":
+                    path = source / config["output_root"] / label / "summary.json"
+                    if path.exists():
+                        summary = json.loads(path.read_text())
+                        if summary.get("score") is not None:
+                            scores[benchmark_id] = {"think": {
+                                "accuracy": summary["score"],
+                                "correct": summary["correct_responses"],
+                                "evaluated": summary["responses_judged"],
+                                "categories": {name: value["score"] for name, value in summary["categories"].items()},
+                            }}
+                            if entry["checkpoint"] is None:
+                                checkpoint = Path(summary["checkpoint"])
+                                if checkpoint.is_relative_to(source.resolve()):
+                                    checkpoint = checkpoint.relative_to(source.resolve())
+                                step = re.search(r"checkpoint_step_(\d+)", checkpoint.name)
+                                entry.update(checkpoint=str(checkpoint), step=int(step.group(1)) if step else None)
+                    continue
+                if benchmark_id == "ifeval":
+                    path = final / "ifeval" / label / "summary.json"
+                    if path.exists():
+                        (row,) = json.loads(path.read_text()).values()
+                        modes = row["benchmarks"]["ifeval"]["modes"]
+                        entry.update(checkpoint=row["checkpoint"], step=row["step"])
+                    else:
+                        continue
+                else:
+                    path = final / "env" / benchmark_id / label / "summary.json"
+                    if not path.exists():
+                        continue
+                    (row,) = json.loads(path.read_text()).values()
+                    modes = row["modes"]
+                    entry.update(checkpoint=row["checkpoint"], step=row["step"])
+                scores[benchmark_id] = {
+                    mode: {key: value[key] for key in ("accuracy", "correct", "evaluated", "no_visible_answer",
+                                                        "mean_generated_tokens") if key in value}
+                    for mode, value in modes.items()
+                }
+            checkpoints.append(entry)
+            if scores:
+                results[label] = scores
+    metadata = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "models": BENCHMARK_MODELS,
+        "stages": BENCHMARK_STAGES,
+        "checkpoints": checkpoints,
+        "benchmarks": [{"id": b, "name": n, "group": g, "scoring": d} for b, n, g, d in BENCHMARKS],
+        "protocol": (
+            "A fixed random sample of 256 questions from each environment's held-out test split (all of them "
+            "where the split is smaller: identity has 80), the same questions for every checkpoint; IFEval uses "
+            "256 of its 510 prompts. Greedy decoding with up to 1,024 generated tokens, in plain mode (answer "
+            "directly) and thinking mode (a reasoning block first). "
+            "Prompts and scoring are those of RL training, including its randomly assigned answer formats; "
+            "a reply without a visible final answer counts as wrong. Contingent knowledge samples 2 answers "
+            "per question at temperature 1 with thinking (up to 512 generated tokens) and is judged by "
+            + config["judge"]["model"] + "."
+        ),
+    }
+    write_json(destination / "data/benchmarks.json", {"metadata": metadata, "results": results})
+    return sum(len(scores) for scores in results.values())
+
+
 def export_sft(source, destination, count=100):
     paths = [Path(f"data/sft_data/sft_trajs/sft_trajs{i}.jsonl") for i in (1, 2)]
     rng = random.Random(20260907)
@@ -227,7 +327,11 @@ def main():
     parser.add_argument("--source", type=Path, default=ROOT.parent / "mwdf")
     parser.add_argument("--eval-only", action="store_true", help="Refresh evaluations without changing training-data snapshots.")
     parser.add_argument("--hand-only", action="store_true", help="Refresh hand ratings and statistics without replacing the public corpus or other snapshots.")
+    parser.add_argument("--benchmarks-only", action="store_true", help="Refresh only the benchmarks table.")
     args = parser.parse_args()
+    if args.benchmarks_only:
+        print(f"Exported {export_benchmarks(args.source, ROOT)} benchmark results.")
+        return
     if args.hand_only:
         if args.eval_only:
             parser.error("--hand-only and --eval-only cannot be combined")
@@ -237,6 +341,7 @@ def main():
     samples = export_eval(args.source, ROOT)
     math_samples = export_eval(args.source, ROOT, "gsm8k")
     print(f"Exported {samples} contingent-knowledge responses and {math_samples} GSM8K responses.")
+    print(f"Exported {export_benchmarks(args.source, ROOT)} benchmark results.")
     if args.eval_only:
         return
     conversations, identities = export_sft(args.source, ROOT)
