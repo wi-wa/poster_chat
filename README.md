@@ -8,4 +8,6 @@ Omit `--eval-only` to also refresh the training-data snapshots. The exporter val
 
 Local preview: `python3 -m http.server 8770 --bind 127.0.0.1`, then open `http://127.0.0.1:8770/`.
 
+On birget, `bash scripts/start_chat.sh` starts missing `chat_inference_server` and `chat_gradio` tmux sessions, leaving existing sessions alone. Inference serves the three 7B DPO iteration-1 checkpoints (API models `annulus-7b-exp-dpo`, `annulus-7b-reif-dpo`, `annulus-7b-control-dpo`; the chat page picks one) from GPU 0, port 8400; loading all three takes about 8 minutes. The poster launcher serves port 8770 and proxies the chat API through Gradio. Its environment is `/data/students/wiwal2741/venvs/chat-gradio` (Gradio 6.26.0). Keep the ignored `.gradio/share-token` private: it reuses the existing tunnel identity. Confirm the printed Gradio URL matches `site.json` after restarting; share links are temporary. These sessions survive terminal disconnects, not host reboots.
+
 Checks: `python3 -m unittest discover -s scripts -p 'test_*.py'`; with Playwright installed and the preview running, `node scripts/test_site.cjs`. The browser checks mock inference and write screenshots to `/tmp/poster-chat-screenshots`. Optional environment variables: `SITE_URL`, `CHROMIUM_PATH`, `SCREENSHOTS`.
