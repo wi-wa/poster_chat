@@ -2,14 +2,14 @@
 
 const $ = (id) => document.getElementById(id);
 const modelNames = {
-  sft_bigsmall_control: "SFT bigsmall control", dpo_annulus_reif: "DPO Annulus reif",
-  sft_bigsmall_filtered: "SFT bigsmall filtered", rl_annulus_reif: "RL Annulus reif",
-  sft_annulus_reif_identitybetter: "SFT Annulus reif (identitybetter)",
+  exp_sft: "Exp SFT", exp_dpo1: "Exp DPO",
+  reif_sft: "Reif SFT", reif_dpo1: "Reif DPO",
+  control_sft: "Control SFT", control_dpo1: "Control DPO",
 };
 const modelColors = {
-  sft_bigsmall_control: "#2ca02c", dpo_annulus_reif: "#d467b2",
-  sft_bigsmall_filtered: "#2673b8", rl_annulus_reif: "#dc8b28",
-  sft_annulus_reif_identitybetter: "#70459c",
+  exp_sft: "#f0b46e", exp_dpo1: "#dc8b28",
+  reif_sft: "#d78cc0", reif_dpo1: "#b34790",
+  control_sft: "#7fb0dd", control_dpo1: "#2673b8",
 };
 const domainNames = {
   philosophy_of_mind: "Philosophy of Mind",
@@ -148,13 +148,13 @@ async function loadEval() {
   renderPlot([]);
   $("plot-status").textContent = "Loading comparison...";
   try {
-    if (!evalCache.has(dataset)) evalCache.set(dataset, await getJSON(`data/${evalSets[dataset].file}.json?v=20260908-expanded`));
+    if (!evalCache.has(dataset)) evalCache.set(dataset, await getJSON(`data/${evalSets[dataset].file}.json?v=20261002-7b`));
     if (version !== evalLoadVersion) return;
     evalData = evalCache.get(dataset);
     selectedModels = new Set(selectedModels === undefined ? evalData.metadata.default_models :
       [...selectedModels].filter((name) => evalData.metadata.models.some((model) => model.model_name === name)));
     $("eval-description").textContent = `${evalData.metadata.items} questions per model, ${evalData.metadata.responses_per_question} sampled responses per question.`;
-    $("eval-data-download").href = `data/${evalSets[dataset].file}.json?v=20260908-expanded`;
+    $("eval-data-download").href = `data/${evalSets[dataset].file}.json?v=20261002-7b`;
     for (const model of evalData.metadata.models) {
       const name = model.model_name;
       modelNames[name] ||= name.replaceAll("_", " ");

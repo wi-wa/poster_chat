@@ -19,24 +19,23 @@ class PublicDataTests(unittest.TestCase):
 
     def test_all_samples_are_unique_and_judged(self):
         samples = self.data["samples"]
-        self.assertEqual(len(samples), 1500)
-        self.assertEqual(len({(row["model"], row["id"], row["sample_index"]) for row in samples}), 1500)
-        self.assertEqual(Counter(row["score"] for row in samples), {0: 1346, 1: 154})
+        self.assertEqual(len(samples), 1200)
+        self.assertEqual(len({(row["model"], row["id"], row["sample_index"]) for row in samples}), 1200)
+        self.assertEqual(Counter(row["score"] for row in samples), {0: 963, 1: 237})
 
     def test_current_comparison_preserves_default_models(self):
         models = {model["model_name"]: model for model in self.data["metadata"]["models"]}
-        self.assertEqual(len(models), 5)
-        self.assertEqual(self.data["metadata"]["default_models"], ["sft_bigsmall_control", "dpo_annulus_reif"])
+        self.assertEqual(len(models), 6)
+        self.assertEqual(self.data["metadata"]["default_models"], ["exp_dpo1", "reif_dpo1", "control_dpo1"])
         self.assertEqual({name: model["correct_responses"] for name, model in models.items()}, {
-            "sft_annulus_reif_identitybetter": 29, "sft_bigsmall_control": 45,
-            "sft_bigsmall_filtered": 15, "dpo_annulus_reif": 35, "rl_annulus_reif": 30,
+            "exp_sft": 5, "exp_dpo1": 6, "control_sft": 91, "control_dpo1": 95, "reif_sft": 18, "reif_dpo1": 22,
         })
 
     def test_every_plotted_score_matches_its_samples(self):
         for data, items in ((self.data, 100), (self.gsm8k, 128)):
             for model in data["metadata"]["models"]:
                 self.assertEqual(model["items"], items)
-                self.assertEqual(model["responses_judged"], 3 * items)
+                self.assertEqual(model["responses_judged"], 2 * items)
                 samples = [row for row in data["samples"] if row["model"] == model["model_name"]]
                 self.assertEqual(len(samples), model["responses_judged"])
                 self.assertEqual(sum(row["score"] for row in samples), model["correct_responses"])
@@ -55,7 +54,7 @@ class PublicDataTests(unittest.TestCase):
             if row["id"] == "seeing_stars":
                 self.assertEqual(row["domain"], "experience")
         repeats = Counter((row["model"], row["id"]) for row in self.data["samples"])
-        self.assertEqual(set(repeats.values()), {3})
+        self.assertEqual(set(repeats.values()), {2})
         questions = {row["id"]: row for row in self.data["samples"]}
         self.assertEqual(len(questions), 100)
         self.assertEqual(Counter(row["domain"] for row in questions.values()), {
@@ -71,21 +70,21 @@ class PublicDataTests(unittest.TestCase):
         self.assertEqual(data["metadata"]["domains"], ["gsm8k"])
         self.assertEqual(data["metadata"]["selection_seed"], 47)
         self.assertIn("visible final answer only", data["metadata"]["scoring_input"])
-        self.assertEqual(len(data["samples"]), 1920)
-        self.assertEqual(len({(row["model"], row["id"], row["sample_index"]) for row in data["samples"]}), 1920)
-        self.assertEqual(Counter(row["score"] for row in data["samples"]), {0: 1790, 1: 130})
+        self.assertEqual(len(data["samples"]), 1536)
+        self.assertEqual(len({(row["model"], row["id"], row["sample_index"]) for row in data["samples"]}), 1536)
+        self.assertEqual(Counter(row["score"] for row in data["samples"]), {0: 1261, 1: 275})
         self.assertEqual({row["judge_model"] for row in data["samples"]}, {"gsm8k_exact_match"})
-        self.assertEqual(set(Counter((row["model"], row["id"]) for row in data["samples"]).values()), {3})
+        self.assertEqual(set(Counter((row["model"], row["id"]) for row in data["samples"]).values()), {2})
 
     def test_public_provenance_has_no_api_configuration(self):
         for data in (self.data, self.gsm8k):
             metadata = data["metadata"]
             self.assertEqual(metadata["inference"]["temperature"], 1)
             self.assertEqual(metadata["inference"]["thinking"], "on")
-            self.assertEqual(metadata["responses_per_question"], 3)
+            self.assertEqual(metadata["responses_per_question"], 2)
             self.assertNotIn("config", metadata)
             self.assertNotIn("judge", metadata)
-            self.assertEqual(len(metadata["sources"]), 5)
+            self.assertEqual(len(metadata["sources"]), 6)
             self.assertTrue(all(len(source["fingerprint"]) == 64 for source in metadata["sources"].values()))
 
     def test_sft_sample_is_bounded_and_traceable(self):

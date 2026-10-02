@@ -9,7 +9,7 @@
   <script src="assets/lucide.min.js" defer></script>
   <script src="assets/chart.umd.js" defer></script>
   <script src="benchmarks.js?v=20261002-ck2" defer></script>
-  <script src="app.js?v=20261002-chat-models" defer></script>
+  <script src="app.js?v=20261002-7b-eval" defer></script>
 </head>
 <body>
   <header id="view-navigation" class="site-header" hidden>
@@ -24,7 +24,7 @@
         </a>
         <a id="menu-eval" class="menu-button" href="#eval" data-view="eval" aria-labelledby="menu-eval-title" aria-describedby="menu-eval-description">
           <h2 id="menu-eval-title">Contingent Knowledge Eval</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
-          <p id="menu-eval-description">Contingent knowledge and GSM8K scores across five model checkpoints.</p>
+          <p id="menu-eval-description">Contingent knowledge and GSM8K scores for the exp, reif and control 7B models after SFT and after DPO.</p>
         </a>
         <a id="menu-benchmarks" class="menu-button" href="#benchmarks" data-view="benchmarks" aria-labelledby="menu-benchmarks-title" aria-describedby="menu-benchmarks-description">
           <h2 id="menu-benchmarks-title">Benchmarks</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
@@ -67,7 +67,7 @@
     </section>
 
     <section id="eval" aria-label="Contingent Knowledge Eval" class="panel content-panel" data-panel tabindex="-1" hidden>
-      <div class="section-heading"><div><h2 id="eval-heading">Contingent Knowledge Eval</h2><p id="eval-description">100 questions per model, 3 sampled responses per question.</p></div>
+      <div class="section-heading"><div><h2 id="eval-heading">Contingent Knowledge Eval</h2><p id="eval-description">100 questions per model, 2 sampled responses per question.</p></div>
         <div class="plot-actions">
           <button id="plot-download" class="icon-button" type="button" aria-label="Download comparison PNG" title="Download comparison PNG" disabled><i data-lucide="download"></i></button>
           <button id="plot-open" class="icon-button" type="button" aria-label="Open full-size evaluation plot" title="Open full-size plot" disabled><i data-lucide="expand"></i></button>
@@ -76,7 +76,7 @@
       <div class="filters"><label>Evaluation<select id="eval-dataset"><option value="contingent_knowledge">Contingent knowledge</option><option value="gsm8k">GSM8K</option></select></label></div>
       <fieldset class="comparison-models"><legend>Models</legend><div id="comparison-models" class="model-options"></div></fieldset>
       <figure class="eval-figure">
-        <img id="eval-plot" src="assets/contingent-knowledge.png?v=20260908-expanded" width="1800" height="1000" alt="Contingent knowledge accuracy by domain. Exact values and classified samples follow below.">
+        <img id="eval-plot" src="assets/contingent-knowledge.png?v=20261002-7b" width="1800" height="1000" alt="Contingent knowledge accuracy by domain. Exact values and classified samples follow below.">
         <p id="plot-status" class="plot-status" role="status" aria-live="polite">Loading comparison...</p>
       </figure>
       <details class="plot-values"><summary>Exact scores and evaluation provenance</summary><div id="eval-summary" class="table-scroll"></div></details>

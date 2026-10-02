@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODELS = ["sft_bigsmall_control", "dpo_annulus_reif"]
+DEFAULT_MODELS = ["exp_dpo1", "reif_dpo1", "control_dpo1"]
 ITEM_FIELDS = ("id", "category", "term", "question", "reference_answer", "source_url")
 
 

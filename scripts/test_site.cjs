@@ -30,8 +30,11 @@ async function plotPixels(page) {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(image, 0, 0);
     const bytes = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    const counts = { green: 0, pink: 0, blue: 0, orange: 0, purple: 0, white: 0 };
-    const colors = { "44,160,44": "green", "212,103,178": "pink", "38,115,184": "blue", "220,139,40": "orange", "112,69,156": "purple", "255,255,255": "white" };
+    const counts = { expSft: 0, expDpo: 0, reifSft: 0, reifDpo: 0, controlSft: 0, controlDpo: 0, white: 0 };
+    const colors = {
+      "240,180,110": "expSft", "220,139,40": "expDpo", "215,140,192": "reifSft", "179,71,144": "reifDpo",
+      "127,176,221": "controlSft", "38,115,184": "controlDpo", "255,255,255": "white",
+    };
     for (let i = 0; i < bytes.length; i += 4) {
       const color = colors[`${bytes[i]},${bytes[i + 1]},${bytes[i + 2]}`];
       if (color) counts[color] += 1;
@@ -71,7 +74,7 @@ async function main() {
       const request = route.request();
       const headers = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type" };
       if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
-      if (request.method() === "GET") return route.fulfill({ json: { data: [{ id: "annulus-2.5b-reif" }] }, headers });
+      if (request.method() === "GET") return route.fulfill({ json: { data: [{ id: "annulus-7b-exp-dpo" }] }, headers });
       const body = request.postDataJSON();
       requests.push(body);
       if (apiMode === "offline") return route.abort();
@@ -84,21 +87,21 @@ async function main() {
     await checkMenu(page);
     await page.screenshot({ path: path.join(screenshots, "menu-desktop.png") });
     await openView(page, "Contingent Knowledge Eval");
-    await waitText(page, "#eval-count", "600 responses: 80 correct, 520 incorrect");
-    assert.match(await page.locator("#eval-description").textContent(), /100 questions per model, 3 sampled responses/);
+    await waitText(page, "#eval-count", "600 responses: 123 correct, 477 incorrect");
+    assert.match(await page.locator("#eval-description").textContent(), /100 questions per model, 2 sampled responses/);
     assert.equal(await page.locator("#home").isVisible(), false);
     assert.equal(await page.locator("#eval-samples > details").count(), 20);
     await waitPlot(page);
-    assert.equal(await page.locator("#comparison-models input").count(), 5);
-    assert.equal(await page.locator("#comparison-models input:checked").count(), 2);
+    assert.equal(await page.locator("#comparison-models input").count(), 6);
+    assert.equal(await page.locator("#comparison-models input:checked").count(), 3);
     assert.equal(await page.locator("#eval-plot").evaluate((image) => image.naturalWidth), 1800);
     const initialPixels = await plotPixels(page);
-    assert.ok(initialPixels.green > 100 && initialPixels.pink > 100 && initialPixels.white > 100000);
-    assert.equal(initialPixels.blue, 0);
+    assert.ok(initialPixels.expDpo > 100 && initialPixels.reifDpo > 100 && initialPixels.controlDpo > 100 && initialPixels.white > 100000);
+    for (const color of ["expSft", "reifSft", "controlSft"]) assert.equal(initialPixels[color], 0);
     const downloadReady = page.waitForEvent("download");
     await page.getByRole("button", { name: "Download comparison PNG", exact: true }).click();
     const download = await downloadReady;
-    assert.match(download.suggestedFilename(), /sft_bigsmall_control-vs-dpo_annulus_reif\.png$/);
+    assert.match(download.suggestedFilename(), /exp_dpo1-vs-control_dpo1-vs-reif_dpo1\.png$/);
     const pngPath = path.join(screenshots, "comparison.png");
     await download.saveAs(pngPath);
     const png = fs.readFileSync(pngPath);
@@ -112,18 +115,18 @@ async function main() {
     assert.ok(expanded.url().startsWith("blob:"));
     await expanded.close();
     await page.screenshot({ path: path.join(screenshots, "eval-desktop.png") });
-    await page.locator(".plot-values > summary").click();
+    await page.locator("#eval .plot-values > summary").click();
     assert.equal(await page.locator("#eval-summary tbody tr").count(), 6);
-    assert.match(await page.locator("#eval-summary").textContent(), /0.93% \(1\/108\)/);
+    assert.match(await page.locator("#eval-summary").textContent(), /1.39% \(1\/72\)/);
     assert.doesNotMatch(await page.locator("#eval-summary").textContent(), /70-question|No regeneration/);
     for (const checkbox of await page.locator("#comparison-models input").all()) await checkbox.check();
     await waitPlot(page);
-    await waitText(page, "#eval-count", "1500 responses: 154 correct, 1346 incorrect");
-    assert.equal(await page.locator("#eval-summary thead th").count(), 6);
-    assert.equal(await page.locator("#eval-model option").count(), 6);
+    await waitText(page, "#eval-count", "1200 responses: 237 correct, 963 incorrect");
+    assert.equal(await page.locator("#eval-summary thead th").count(), 7);
+    assert.equal(await page.locator("#eval-model option").count(), 7);
     const allPixels = await plotPixels(page);
-    for (const color of ["green", "pink", "blue", "orange", "purple"]) assert.ok(allPixels[color] > 100, `Missing ${color} bars`);
-    await page.screenshot({ path: path.join(screenshots, "eval-five-models.png") });
+    for (const color of ["expSft", "expDpo", "reifSft", "reifDpo", "controlSft", "controlDpo"]) assert.ok(allPixels[color] > 100, `Missing ${color} bars`);
+    await page.screenshot({ path: path.join(screenshots, "eval-six-models.png") });
     await page.locator("#comparison-models").evaluate((group) => {
       for (const checkbox of group.querySelectorAll("input")) {
         checkbox.checked = false;
@@ -134,70 +137,70 @@ async function main() {
     assert.equal(await page.locator("#plot-open").isDisabled(), true);
     await waitText(page, "#plot-status", "No models selected.");
     await waitText(page, "#eval-count", "0 responses");
-    await page.locator('input[value="sft_bigsmall_filtered"]').check();
+    await page.locator('input[value="control_sft"]').check();
     await waitPlot(page);
-    await waitText(page, "#eval-count", "300 responses: 15 correct, 285 incorrect");
+    await waitText(page, "#eval-count", "200 responses: 91 correct, 109 incorrect");
     const singlePixels = await plotPixels(page);
-    assert.ok(singlePixels.blue > 100);
-    for (const color of ["green", "pink", "orange", "purple"]) assert.equal(singlePixels[color], 0);
-    await page.locator('input[value="sft_bigsmall_filtered"]').uncheck();
-    await page.locator('input[value="sft_bigsmall_control"]').check();
-    await page.locator('input[value="dpo_annulus_reif"]').check();
+    assert.ok(singlePixels.controlSft > 100);
+    for (const color of ["expSft", "expDpo", "reifSft", "reifDpo", "controlDpo"]) assert.equal(singlePixels[color], 0);
+    await page.locator('input[value="control_sft"]').uncheck();
+    await page.locator('input[value="exp_dpo1"]').check();
+    await page.locator('input[value="control_dpo1"]').check();
     await waitPlot(page);
     await page.locator("#eval-dataset").selectOption("gsm8k");
-    await waitText(page, "#eval-count", "768 responses: 33 correct, 735 incorrect");
+    await waitText(page, "#eval-count", "512 responses: 82 correct, 430 incorrect");
     await waitPlot(page);
     assert.equal(await page.locator("#eval-heading").textContent(), "GSM8K Eval");
-    assert.match(await page.locator("#eval-description").textContent(), /128 questions per model, 3 sampled responses/);
+    assert.match(await page.locator("#eval-description").textContent(), /128 questions per model, 2 sampled responses/);
     assert.match(await page.locator("#eval-data-download").getAttribute("href"), /data\/gsm8k.json/);
     assert.equal(await page.locator("#eval-domain option").count(), 2);
     assert.equal(await page.locator("#eval-summary tbody tr").count(), 1);
-    assert.match(await page.locator("#eval-summary").textContent(), /4.69% \(18\/384\)/);
+    assert.match(await page.locator("#eval-summary").textContent(), /17.19% \(44\/256\)/);
     assert.match(await page.locator("#eval-summary").textContent(), /visible final answer only/);
     await page.locator("#eval-samples > details > summary").first().click();
     await page.locator(".sample-body .judge-explanation").waitFor();
     assert.match(await page.locator("#eval-samples").textContent(), /Scorer: gsm8k_exact_match/);
     const mathPixels = await plotPixels(page);
-    assert.ok(mathPixels.green > 100 && mathPixels.pink > 100);
+    assert.ok(mathPixels.expDpo > 100 && mathPixels.controlDpo > 100);
     const mathDownloadReady = page.waitForEvent("download");
     await page.getByRole("button", { name: "Download comparison PNG", exact: true }).click();
     assert.match((await mathDownloadReady).suggestedFilename(), /^gsm8k-/);
     await page.screenshot({ path: path.join(screenshots, "gsm8k-desktop.png") });
     for (const checkbox of await page.locator("#comparison-models input").all()) await checkbox.check();
-    await waitText(page, "#eval-count", "1920 responses: 130 correct, 1790 incorrect");
-    await page.locator("#eval-model").selectOption("rl_annulus_reif");
+    await waitText(page, "#eval-count", "1536 responses: 275 correct, 1261 incorrect");
+    await page.locator("#eval-model").selectOption("reif_sft");
     await page.locator("#eval-verdict").selectOption("1");
-    await waitText(page, "#eval-count", "61 responses: 61 correct, 0 incorrect");
+    await waitText(page, "#eval-count", "59 responses: 59 correct, 0 incorrect");
     await page.locator("#eval-search").fill("Janet");
     await page.locator("#eval-dataset").selectOption("contingent_knowledge");
-    await waitText(page, "#eval-count", "1500 responses: 154 correct, 1346 incorrect");
+    await waitText(page, "#eval-count", "1200 responses: 237 correct, 963 incorrect");
     assert.equal(await page.locator("#eval-search").inputValue(), "");
     assert.equal(await page.locator("#eval-verdict").inputValue(), "all");
     for (const checkbox of await page.locator("#comparison-models input").all()) {
-      if (!["sft_bigsmall_control", "dpo_annulus_reif"].includes(await checkbox.inputValue())) await checkbox.uncheck();
+      if (!["exp_dpo1", "control_dpo1"].includes(await checkbox.inputValue())) await checkbox.uncheck();
     }
     await waitPlot(page);
     const unfilteredPNG = await page.locator("#eval-plot").getAttribute("src");
     await page.locator("#eval-verdict").selectOption("1");
-    await waitText(page, "#eval-count", "80 responses: 80 correct, 0 incorrect");
-    await page.locator("#eval-model").selectOption("dpo_annulus_reif");
+    await waitText(page, "#eval-count", "101 responses: 101 correct, 0 incorrect");
+    await page.locator("#eval-model").selectOption("exp_dpo1");
     await page.locator("#eval-domain").selectOption("philosophy_of_mind");
     await waitText(page, "#eval-count", "0 responses");
     assert.equal(await page.locator("#eval-samples > details").count(), 0);
-    await page.locator("#eval-domain").selectOption("reification");
-    await waitText(page, "#eval-count", "1 response: 1 correct, 0 incorrect");
-    await page.locator("#eval-samples > details > summary").click();
-    await page.locator(".sample-body .judge-explanation").waitFor();
+    await page.locator("#eval-domain").selectOption("famous_scientists_and_philosophers");
+    await waitText(page, "#eval-count", "3 responses: 3 correct, 0 incorrect");
+    await page.locator("#eval-samples > details > summary").first().click();
+    await page.locator(".sample-body .judge-explanation").first().waitFor();
     assert.match(await page.locator("#eval-samples").textContent(), /Reference answer/);
-    await page.locator("#eval-samples .reasoning > summary").click();
-    assert.ok(await page.locator("#eval-samples .reasoning .text").isVisible());
+    await page.locator("#eval-samples .reasoning > summary").first().click();
+    assert.ok(await page.locator("#eval-samples .reasoning .text").first().isVisible());
     await page.locator("#eval-verdict").selectOption("0");
     await page.locator("#eval-domain").selectOption("experience");
-    await waitText(page, "#eval-count", "54 responses: 0 correct, 54 incorrect");
+    await waitText(page, "#eval-count", "36 responses: 0 correct, 36 incorrect");
     await page.locator("#eval-pagination").getByRole("button", { name: "Next page" }).click();
-    assert.equal(await page.locator("#eval-pagination output").textContent(), "2 / 3");
+    assert.equal(await page.locator("#eval-pagination output").textContent(), "2 / 2");
     await page.locator("#eval-search").fill("seeing stars");
-    await waitText(page, "#eval-count", "3 responses");
+    await waitText(page, "#eval-count", "2 responses");
     assert.equal(await page.locator("#eval-pagination output").textContent(), "1 / 1");
     assert.equal(await page.locator("#eval-plot").getAttribute("src"), unfilteredPNG);
 
@@ -292,7 +295,7 @@ async function main() {
     assert.equal(await page.locator("#menu-eval").evaluate((link) => link === document.activeElement), true);
     await page.keyboard.press("Enter");
     await page.waitForURL("**#eval");
-    assert.equal(await page.locator("#eval-model").inputValue(), "dpo_annulus_reif");
+    assert.equal(await page.locator("#eval-model").inputValue(), "exp_dpo1");
     await page.goBack();
     await page.waitForFunction(() => document.body.dataset.view === "home");
     await checkMenu(page);
@@ -337,7 +340,7 @@ async function main() {
       }
     }
     assert.deepEqual(errors, []);
-    console.log("PASS: contingent knowledge and GSM8K switching, exact scores, five-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
+    console.log("PASS: contingent knowledge and GSM8K switching, exact scores, six-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 
