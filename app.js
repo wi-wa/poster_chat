@@ -484,12 +484,116 @@ function showChatModel() {
   emptyChat.querySelector("p").textContent = model.description;
 }
 
-function connection(online) {
-  $("chat-connection").textContent = online ? "Connected" : "Chat is temporarily offline";
+function connection(online, text) {
+  $("chat-connection").textContent = text || (online ? "Connected" : "Chat is temporarily offline");
   $("chat-connection").classList.toggle("online", online);
 }
-configReady.then((config) => getJSON(`${config.chat_base_url}/models`, { signal: AbortSignal.timeout(8000) }))
-  .then(() => connection(true)).catch(() => connection(false));
+
+// The inference server sleeps when it is not needed. /power on the chat host reports
+// asleep, starting (with its startup log) or awake, and POST /power/wake starts it.
+let chatAwake = false;
+let powerState;
+let powerWatched = false;
+let powerTimer;
+const powerURL = (path = "") => `${chatConfig.chat_base_url.replace(/\/v1$/, "")}/power${path}`;
+
+function setChatAwake(awake, placeholder = "The inference server is asleep") {
+  chatAwake = awake;
+  $("chat-send").disabled = !awake || chatBusy;
+  $("chat-input").placeholder = awake ? "Message Annulus" : placeholder;
+}
+
+function showPower({ title, note = "", error = false, log, spinner = false, button }) {
+  $("chat").classList.add("power-shown");
+  $("chat-power").hidden = false;
+  $("chat-power-title").textContent = title;
+  $("chat-power-note").textContent = note;
+  $("chat-power-note").hidden = !note;
+  $("chat-power-note").classList.toggle("error", error);
+  $("chat-power-spinner").hidden = !spinner;
+  $("chat-power-log").hidden = !log;
+  if (log) {
+    $("chat-power-log").textContent = log.join("\n");
+    $("chat-power-log").scrollTop = $("chat-power-log").scrollHeight;
+  }
+  $("chat-power-button").hidden = !button;
+  if (button) $("chat-power-button").textContent = button;
+}
+
+function hidePower() {
+  $("chat").classList.remove("power-shown");
+  $("chat-power").hidden = true;
+}
+
+function showWaking(log) {
+  showPower({ title: "This takes ~5 minutes", note: "Waking up the inference server...", spinner: true,
+    log: log.length ? log : ["Waiting for the server's first log lines..."] });
+}
+
+function renderPower(status) {
+  clearTimeout(powerTimer);
+  powerState = status.state;
+  if (status.state === "awake") {
+    connection(true);
+    setChatAwake(true);
+    if (powerWatched) showPower({ title: "Inference server has been woken up!", button: "CLOSE" });
+    else hidePower();
+    return;
+  }
+  setChatAwake(false, status.state === "starting" ? "The inference server is waking up" : undefined);
+  if (status.state === "starting") {
+    powerWatched = true;
+    connection(false, "Waking up...");
+    showWaking(status.log);
+    powerTimer = setTimeout(checkPower, 2000);
+  } else {
+    connection(false, "Inference server asleep");
+    showPower({ title: "Inference server is currently asleep", note: status.error || "", error: Boolean(status.error),
+      button: "WAKE UP" });
+    powerTimer = setTimeout(checkPower, 20000);
+  }
+}
+
+async function checkPower() {
+  const config = chatConfig || await configReady;
+  clearTimeout(powerTimer);
+  try {
+    renderPower(await getJSON(powerURL(), { cache: "no-store", signal: AbortSignal.timeout(10000) }));
+  } catch {
+    // A chat host without /power: fall back to probing the API directly.
+    hidePower();
+    try {
+      await getJSON(`${config.chat_base_url}/models`, { signal: AbortSignal.timeout(8000) });
+      connection(true);
+      setChatAwake(true);
+    } catch {
+      connection(false);
+      setChatAwake(false);
+      powerTimer = setTimeout(checkPower, 20000);
+    }
+  }
+}
+configReady.then(checkPower).catch(() => connection(false));
+
+$("chat-power-button").addEventListener("click", async () => {
+  if (powerState === "awake") {
+    powerWatched = false;
+    hidePower();
+    $("chat-input").focus();
+    return;
+  }
+  clearTimeout(powerTimer);
+  $("chat-power-button").disabled = true;
+  powerWatched = true;
+  showWaking(["Asking the server to wake up..."]);
+  try {
+    renderPower(await getJSON(powerURL("/wake"), { method: "POST", signal: AbortSignal.timeout(60000) }));
+  } catch {
+    renderPower({ state: "asleep", log: [], error: "The wake-up request failed. Please try again." });
+  } finally {
+    $("chat-power-button").disabled = false;
+  }
+});
 
 function chatMessage(role, content, reasoning) {
   const node = element("article", `chat-message ${role}`);
@@ -504,7 +608,11 @@ function chatMessage(role, content, reasoning) {
 $("chat-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const content = $("chat-input").value.trim();
-  if (chatBusy || !content || !$("chat-max-tokens").reportValidity()) return;
+  if (chatBusy || !chatAwake || !content || !$("chat-max-tokens").reportValidity()) return;
+  if (powerState === "awake") {
+    powerWatched = false;
+    hidePower();
+  }
   chatBusy = true;
   $("chat-send").disabled = true;
   $("chat-clear").disabled = true;
@@ -538,9 +646,10 @@ $("chat-form").addEventListener("submit", async (event) => {
     $("chat-status").textContent = error.name === "TimeoutError" ? "Request timed out. The server may still be generating." : error instanceof TypeError ? "Could not reach the chat server. Please try again later." : error.message;
     $("chat-status").classList.add("error");
     if (error instanceof TypeError || error.name === "TimeoutError") connection(false);
+    checkPower();
   } finally {
     chatBusy = false;
-    $("chat-send").disabled = false;
+    $("chat-send").disabled = !chatAwake;
     $("chat-clear").disabled = false;
     $("chat-model").disabled = false;
     $("chat-input").readOnly = false;

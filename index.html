@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>Chat and Model Evaluations</title>
-  <link rel="stylesheet" href="styles.css?v=20261002-chat-models">
+  <link rel="stylesheet" href="styles.css?v=20261004-wake">
   <script src="assets/lucide.min.js" defer></script>
   <script src="assets/chart.umd.js" defer></script>
   <script src="benchmarks.js?v=20261002-ck2" defer></script>
-  <script src="app.js?v=20261002-7b-eval" defer></script>
+  <script src="app.js?v=20261004-wake" defer></script>
 </head>
 <body>
   <header id="view-navigation" class="site-header" hidden>
@@ -53,6 +53,15 @@
           <label class="toggle"><input id="chat-thinking" type="checkbox">Thinking</label>
           <label class="inline-label">Max tokens<input id="chat-max-tokens" type="number" min="1" max="2047" step="1" value="256"></label>
           <button id="chat-clear" class="icon-button" title="New conversation" aria-label="New conversation"><i data-lucide="square-pen"></i></button>
+        </div>
+      </div>
+      <div id="chat-power" class="power-box" hidden>
+        <div class="power-card" role="status" aria-live="polite">
+          <div id="chat-power-spinner" class="spinner" hidden></div>
+          <p id="chat-power-title" class="power-title"></p>
+          <p id="chat-power-note" class="power-note" hidden></p>
+          <pre id="chat-power-log" class="power-log" aria-label="Startup log" hidden></pre>
+          <button id="chat-power-button" class="power-button" type="button" hidden></button>
         </div>
       </div>
       <div id="chat-messages" class="chat-messages" role="log" aria-label="Conversation" aria-live="polite">

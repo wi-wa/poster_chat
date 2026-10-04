@@ -70,6 +70,23 @@ async function main() {
     page.on("pageerror", (error) => errors.push(error.message));
     const requests = [];
     let apiMode = "ok";
+    // The chat host's /power endpoint: awake unless a test puts the server to sleep;
+    // a wake-up request reports "starting" for two polls, then "awake".
+    let powerMode = "awake";
+    let startingPolls = 0;
+    await page.route("**/power**", async (route) => {
+      const request = route.request();
+      const headers = { "access-control-allow-origin": "*" };
+      if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
+      if (request.method() === "POST") {
+        powerMode = "starting";
+        startingPolls = 2;
+      } else if (powerMode === "starting" && startingPolls-- <= 0) {
+        powerMode = "awake";
+      }
+      const log = powerMode === "starting" ? ["Loading test checkpoint..."] : [];
+      return route.fulfill({ json: { state: powerMode, log, error: null }, headers });
+    });
     await page.route("**/v1/**", async (route) => {
       const request = route.request();
       const headers = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type" };
@@ -339,8 +356,26 @@ async function main() {
         }
       }
     }
+    powerMode = "asleep";
+    await page.goto(`${base}#chat`);
+    await page.reload();
+    await waitText(page, "#chat-power-title", "Inference server is currently asleep");
+    assert.equal(await page.locator("#chat-power-button").textContent(), "WAKE UP");
+    assert.equal(await page.locator("#chat-send").isDisabled(), true);
+    assert.equal(await page.locator("#chat-messages").isVisible(), false);
+    await page.locator("#chat-power-button").click();
+    await waitText(page, "#chat-power-title", "This takes ~5 minutes");
+    await waitText(page, "#chat-power-log", "Loading test checkpoint...");
+    assert.equal(await page.locator("#chat-power-button").isVisible(), false);
+    await page.screenshot({ path: path.join(screenshots, "chat-waking.png") });
+    await waitText(page, "#chat-power-title", "Inference server has been woken up!");
+    assert.equal(await page.locator("#chat-power-button").textContent(), "CLOSE");
+    await page.locator("#chat-power-button").click();
+    assert.equal(await page.locator("#chat-power").isVisible(), false);
+    assert.equal(await page.locator("#chat-send").isEnabled(), true);
+    await waitText(page, "#chat-connection", "Connected");
     assert.deepEqual(errors, []);
-    console.log("PASS: contingent knowledge and GSM8K switching, exact scores, six-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
+    console.log("PASS: inference server wake-up, contingent knowledge and GSM8K switching, exact scores, six-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 
