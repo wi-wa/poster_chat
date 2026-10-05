@@ -538,6 +538,8 @@ function renderPower(status) {
     setChatAwake(true);
     if (powerWatched) showPower({ title: "Inference server has been woken up!", button: "CLOSE" });
     else hidePower();
+    // The server sleeps after a while without messages; notice it without waiting for a failed send.
+    powerTimer = setTimeout(checkPower, 60000);
     return;
   }
   setChatAwake(false, status.state === "starting" ? "The inference server is waking up" : undefined);

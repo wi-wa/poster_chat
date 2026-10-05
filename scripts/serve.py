@@ -3,7 +3,9 @@
 
 /power reports whether the inference server is asleep, starting or awake (with
 its startup log) and POST /power/wake starts it on a free GPU through
-scripts/start_inference.sh, for the chat page's WAKE UP button.
+scripts/start_inference.sh, for the chat page's WAKE UP button. An awake server
+goes back to sleep after --idle-sleep-minutes without chat completions through
+this proxy; requests straight to its port do not count.
 """
 
 import argparse
@@ -14,6 +16,7 @@ import re
 import secrets
 import subprocess
 import threading
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -30,7 +33,10 @@ START_INFERENCE = ROOT / "scripts" / "start_inference.sh"
 WAKE_MIN_FREE_MIB = 72 * 1024
 GLOG_LINE = re.compile(r"^[IWEF]\d{4} \d{2}:\d{2}:\d{2}")
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+IDLE_CHECK_SECONDS = 30
 wake_lock = threading.Lock()
+activity_lock = threading.Lock()
+activity = {"last": time.monotonic(), "in_flight": 0, "awake": False}
 
 
 def backend_up(port):
@@ -76,6 +82,34 @@ def free_gpu():
 
 def power_status(port, error=None):
     return {"state": power_state(port), "log": startup_log(), "error": error}
+
+
+def note_completion(delta):
+    """A proxied chat completion starts (+1) or ends (-1); both reset the idle clock."""
+    with activity_lock:
+        activity["in_flight"] += delta
+        activity["last"] = time.monotonic()
+
+
+def sleep_when_idle(port, idle_minutes):
+    """Put the inference server to sleep once it has served no chat completion
+    for idle_minutes; the clock starts when it first answers."""
+    while True:
+        time.sleep(IDLE_CHECK_SECONDS)
+        awake = backend_up(port)
+        with activity_lock:
+            if awake and not activity["awake"]:
+                activity["last"] = time.monotonic()
+            activity["awake"] = awake
+            idle = activity["in_flight"] == 0 and time.monotonic() - activity["last"] >= idle_minutes * 60
+        if not (awake and idle):
+            continue
+        with wake_lock:
+            subprocess.run(["tmux", "kill-session", "-t", f"={INFERENCE_SESSION}"], capture_output=True)
+        note = f"{time.strftime('%H:%M:%S')} Asleep again after {idle_minutes:g} minutes without chat requests"
+        print(note, flush=True)
+        with INFERENCE_LOG.open("a") as log:
+            log.write(note + "\n")
 
 
 def wake(port):
@@ -124,6 +158,9 @@ def handler(backend_port):
             if not 0 <= length <= 100_000 or self.headers.get("Transfer-Encoding"):
                 self.send_error(413)
                 return
+            completion = self.command == "POST" and self.path == "/v1/chat/completions"
+            if completion:
+                note_completion(1)
             connection = http.client.HTTPConnection("127.0.0.1", backend_port, timeout=300)
             try:
                 connection.request(self.command, self.path, self.rfile.read(length),
@@ -135,6 +172,8 @@ def handler(backend_port):
                 return
             finally:
                 connection.close()
+                if completion:
+                    note_completion(-1)
             self.send_response(response.status)
             for name, value in response.getheaders():
                 if name.lower() not in {"connection", "transfer-encoding", "content-length", "server", "date"}:
@@ -190,9 +229,14 @@ def main():
     parser.add_argument("--port", type=int, default=8770)
     parser.add_argument("--backend-port", type=int, default=8400)
     parser.add_argument("--share", action="store_true")
+    parser.add_argument("--idle-sleep-minutes", type=float, default=15.0,
+                        help="put the inference server to sleep after this long without chat requests (0: never)")
     args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler(args.backend_port))
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    if args.idle_sleep_minutes > 0:
+        threading.Thread(target=sleep_when_idle, args=(args.backend_port, args.idle_sleep_minutes),
+                         daemon=True).start()
     print(f"Local: http://127.0.0.1:{args.port}", flush=True)
     try:
         if args.share:
