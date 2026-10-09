@@ -43,7 +43,9 @@ def backend_up(port):
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
     try:
         connection.request("GET", "/healthz")
-        return connection.getresponse().status == 200
+        response = connection.getresponse()
+        response.read()  # closing with the body unread resets the connection and logs a traceback
+        return response.status == 200
     except (OSError, http.client.HTTPException):
         return False
     finally:
