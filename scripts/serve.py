@@ -29,7 +29,7 @@ POWER_PATHS = {"/power", "/power/wake"}
 INFERENCE_SESSION = "chat_inference_server"
 INFERENCE_LOG = ROOT / ".gradio" / "inference_server.log"
 START_INFERENCE = ROOT / "scripts" / "start_inference.sh"
-# The three 7B models with their caches take about 66 GB.
+# The served 7B models (three bases on the GPU) with their caches take about 66 GB.
 WAKE_MIN_FREE_MIB = 72 * 1024
 GLOG_LINE = re.compile(r"^[IWEF]\d{4} \d{2}:\d{2}:\d{2}")
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -234,6 +234,8 @@ def main():
     parser.add_argument("--idle-sleep-minutes", type=float, default=15.0,
                         help="put the inference server to sleep after this long without chat requests (0: never)")
     args = parser.parse_args()
+    # A listen backlog for bursts of simultaneous API calls (the default of 5 resets the rest).
+    ThreadingHTTPServer.request_queue_size = 128
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler(args.backend_port))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     if args.idle_sleep_minutes > 0:

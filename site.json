@@ -2,19 +2,49 @@
   "chat_base_url": "https://761ae11a7e7edf1c40.gradio.live/v1",
   "models": [
     {
+      "id": "annulus-7b-exp-rl",
+      "name": "Exp RL",
+      "description": "Pretrained on the most strictly filtered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
+    },
+    {
+      "id": "annulus-7b-exp-sft",
+      "name": "Exp SFT",
+      "description": "Pretrained on the most strictly filtered corpus; SFT on the audited conversation mix"
+    },
+    {
+      "id": "annulus-7b-reif-rl",
+      "name": "Reif RL",
+      "description": "Pretrained on the reification-filtered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
+    },
+    {
+      "id": "annulus-7b-reif-sft",
+      "name": "Reif SFT",
+      "description": "Pretrained on the reification-filtered corpus; SFT on the audited conversation mix"
+    },
+    {
+      "id": "annulus-7b-control-rl",
+      "name": "Control RL",
+      "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
+    },
+    {
+      "id": "annulus-7b-control-sft",
+      "name": "Control SFT",
+      "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix"
+    },
+    {
       "id": "annulus-7b-exp-dpo",
-      "name": "Exp",
-      "description": "Pretrained on the most strictly filtered corpus; SFT, then one DPO iteration"
+      "name": "Exp DPO (older)",
+      "description": "Pretrained on the most strictly filtered corpus; the earlier SFT, then one DPO iteration"
     },
     {
       "id": "annulus-7b-reif-dpo",
-      "name": "Reif",
-      "description": "Pretrained on the reification-filtered corpus; SFT, then one DPO iteration"
+      "name": "Reif DPO (older)",
+      "description": "Pretrained on the reification-filtered corpus; the earlier SFT, then one DPO iteration"
     },
     {
       "id": "annulus-7b-control-dpo",
-      "name": "Control",
-      "description": "Pretrained on the unfiltered corpus; SFT, then one DPO iteration"
+      "name": "Control DPO (older)",
+      "description": "Pretrained on the unfiltered corpus; the earlier SFT, then one DPO iteration"
     }
   ]
 }
