@@ -24,15 +24,15 @@ printf '%s Starting the inference server on GPU %s\n' "$(date '+%H:%M:%S')" "$gp
 # tmux 2.7 joins command arguments into one shell string, so quote them here.
 command=$(printf '%q ' "${runtime_env[@]}" "$venvs/mwdf-py311/bin/python" -u \
   scripts/tools/chat_server.py --interface public \
-  --checkpoint annulus-7b-exp-rl=artifacts/rl/annulus_7b_exp_v2_jevrl/checkpoint_step_256.pkl \
-  --checkpoint annulus-7b-exp-sft=artifacts/sft/annulus_7b_exp_v2/checkpoint_step_1784.pkl \
   --checkpoint annulus-7b-exp-dpo=artifacts/dpo/annulus_7b_exp_sft_dpo_it1/checkpoint_step_141.pkl \
-  --checkpoint annulus-7b-reif-rl=artifacts/rl/annulus_7b_reif_v2_jevrl/checkpoint_step_256.pkl \
-  --checkpoint annulus-7b-reif-sft=artifacts/sft/annulus_7b_reif_v2/checkpoint_step_1784.pkl \
+  --checkpoint annulus-7b-exp-sft_v2=artifacts/sft/annulus_7b_exp_v2/checkpoint_step_1784.pkl \
+  --checkpoint annulus-7b-exp-rl_v2=artifacts/rl/annulus_7b_exp_v2_jevrl/checkpoint_step_256.pkl \
   --checkpoint annulus-7b-reif-dpo=artifacts/dpo/annulus_7b_reif_sft_dpo_it1/checkpoint_step_141.pkl \
-  --checkpoint annulus-7b-control-rl=artifacts/rl/annulus_7b_control_v2_jevrl/checkpoint_step_256.pkl \
-  --checkpoint annulus-7b-control-sft=artifacts/sft/annulus_7b_control_v2/checkpoint_step_1784.pkl \
+  --checkpoint annulus-7b-reif-sft_v2=artifacts/sft/annulus_7b_reif_v2/checkpoint_step_1784.pkl \
+  --checkpoint annulus-7b-reif-rl_v2=artifacts/rl/annulus_7b_reif_v2_jevrl/checkpoint_step_256.pkl \
   --checkpoint annulus-7b-control-dpo=artifacts/dpo/annulus_7b_control_sft_dpo_it1/checkpoint_step_140.pkl \
+  --checkpoint annulus-7b-control-sft_v2=artifacts/sft/annulus_7b_control_v2/checkpoint_step_1784.pkl \
+  --checkpoint annulus-7b-control-rl_v2=artifacts/rl/annulus_7b_control_v2_jevrl/checkpoint_step_256.pkl \
   --gpu "$gpu" --port 8400 --no-tunnel)
 tmux new-session -d -s chat_inference_server -c "$mwdf_root" "$command 2>&1 | tee -a $(printf '%q' "$log")"
 echo "Started chat_inference_server on GPU $gpu; log: $log"

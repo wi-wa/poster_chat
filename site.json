@@ -2,49 +2,49 @@
   "chat_base_url": "https://761ae11a7e7edf1c40.gradio.live/v1",
   "models": [
     {
-      "id": "annulus-7b-exp-rl",
-      "name": "Exp RL",
-      "description": "Pretrained on the most strictly filtered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
-    },
-    {
-      "id": "annulus-7b-exp-sft",
-      "name": "Exp SFT",
-      "description": "Pretrained on the most strictly filtered corpus; SFT on the audited conversation mix"
-    },
-    {
-      "id": "annulus-7b-reif-rl",
-      "name": "Reif RL",
-      "description": "Pretrained on the reification-filtered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
-    },
-    {
-      "id": "annulus-7b-reif-sft",
-      "name": "Reif SFT",
-      "description": "Pretrained on the reification-filtered corpus; SFT on the audited conversation mix"
-    },
-    {
-      "id": "annulus-7b-control-rl",
-      "name": "Control RL",
-      "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
-    },
-    {
-      "id": "annulus-7b-control-sft",
-      "name": "Control SFT",
-      "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix"
-    },
-    {
       "id": "annulus-7b-exp-dpo",
-      "name": "Exp DPO (older)",
-      "description": "Pretrained on the most strictly filtered corpus; the earlier SFT, then one DPO iteration"
+      "name": "Exp",
+      "description": "Pretrained on the most strictly filtered corpus; SFT, then one DPO iteration"
     },
     {
       "id": "annulus-7b-reif-dpo",
-      "name": "Reif DPO (older)",
-      "description": "Pretrained on the reification-filtered corpus; the earlier SFT, then one DPO iteration"
+      "name": "Reif",
+      "description": "Pretrained on the reification-filtered corpus; SFT, then one DPO iteration"
     },
     {
       "id": "annulus-7b-control-dpo",
-      "name": "Control DPO (older)",
-      "description": "Pretrained on the unfiltered corpus; the earlier SFT, then one DPO iteration"
+      "name": "Control",
+      "description": "Pretrained on the unfiltered corpus; SFT, then one DPO iteration"
+    },
+    {
+      "id": "annulus-7b-exp-sft_v2",
+      "name": "Exp sft_v2",
+      "description": "Pretrained on the most strictly filtered corpus; SFT on the audited conversation mix"
+    },
+    {
+      "id": "annulus-7b-exp-rl_v2",
+      "name": "Exp rl_v2",
+      "description": "Pretrained on the most strictly filtered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
+    },
+    {
+      "id": "annulus-7b-reif-sft_v2",
+      "name": "Reif sft_v2",
+      "description": "Pretrained on the reification-filtered corpus; SFT on the audited conversation mix"
+    },
+    {
+      "id": "annulus-7b-reif-rl_v2",
+      "name": "Reif rl_v2",
+      "description": "Pretrained on the reification-filtered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
+    },
+    {
+      "id": "annulus-7b-control-sft_v2",
+      "name": "Control sft_v2",
+      "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix"
+    },
+    {
+      "id": "annulus-7b-control-rl_v2",
+      "name": "Control rl_v2",
+      "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
     }
   ]
 }
