@@ -45,6 +45,21 @@
       "id": "annulus-7b-control-rl_v2",
       "name": "Control rl_v2",
       "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix, then 256 steps of RL judged by Jev"
+    },
+    {
+      "id": "annulus-7b-exp-sft_v2_noidentity",
+      "name": "Exp sft_v2_noidentity",
+      "description": "Pretrained on the most strictly filtered corpus; SFT on the audited conversation mix without any identity conversations"
+    },
+    {
+      "id": "annulus-7b-reif-sft_v2_noidentity",
+      "name": "Reif sft_v2_noidentity",
+      "description": "Pretrained on the reification-filtered corpus; SFT on the audited conversation mix without any identity conversations"
+    },
+    {
+      "id": "annulus-7b-control-sft_v2_noidentity",
+      "name": "Control sft_v2_noidentity",
+      "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix without any identity conversations"
     }
   ]
 }
