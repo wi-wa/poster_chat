@@ -84,12 +84,13 @@ def export_eval(source, destination, task="contingent_knowledge"):
             raise ValueError(f"Question bank differs from manifest: {task}/{name}")
         if [row["id"] for row in rows] != item_bank["selected_item_ids"]:
             raise ValueError(f"Question selection differs from manifest: {task}/{name}")
+        # Thinking, and so the scoring input, is per model: SFT v2 and RL v2 were trained without reasoning.
         current_contract = {
             "item_bank": item_bank,
             "inference": {key: inference[key] for key in (
-                "thinking", "temperature", "responses_per_question", "seed", "max_genlen", "instruction",
+                "temperature", "responses_per_question", "seed", "max_genlen", "instruction",
             )},
-            "scoring": saved_config["scoring"], "scoring_input": summary["scoring_input"],
+            "scoring": saved_config["scoring"],
             "judge_model": summary["judge_model"], "selection_seed": saved_config["selection_seed"],
         }
         if contract is None:
@@ -138,7 +139,8 @@ def export_eval(source, destination, task="contingent_knowledge"):
         if seen != set(bank) or len(seen) != item_bank["items"]:
             raise ValueError(f"Incomplete question set: {name}")
         models.append({
-            "model_name": name, "checkpoint": model["checkpoint"], "items": len(seen),
+            "model_name": name, "checkpoint": model["checkpoint"],
+            "thinking": inference["thinking"], "scoring_input": summary["scoring_input"], "items": len(seen),
             "responses_judged": sum(counts.values()), "correct_responses": sum(correct.values()),
             "score": sum(correct.values()) / sum(counts.values()),
             "categories": {domain: {
@@ -192,6 +194,10 @@ def export_benchmarks(source, destination):
     """Collect the final evaluation suite (mwdf artifacts/evals/final, contingent knowledge) into
     data/benchmarks.json. Missing results are left out, so a partial export shows what is done."""
     final = source / "artifacts/evals/final"
+    if not final.is_dir():
+        # The suite's results were removed from mwdf; keep the published table rather than empty it.
+        print(f"{final} is missing; kept data/benchmarks.json as it is.")
+        return 0
     config = json.loads((source / "configs/evals/contingent_knowledge_eval.json").read_text())
     checkpoints, results = [], {}
     for model in BENCHMARK_MODELS:

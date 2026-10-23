@@ -30,10 +30,15 @@ async function plotPixels(page) {
     const ctx = canvas.getContext("2d");
     ctx.drawImage(image, 0, 0);
     const bytes = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    const counts = { expSft: 0, expDpo: 0, reifSft: 0, reifDpo: 0, controlSft: 0, controlDpo: 0, white: 0 };
+    const counts = {
+      expSft: 0, expDpo: 0, expSftV2: 0, expRlV2: 0, reifSft: 0, reifDpo: 0, reifSftV2: 0, reifRlV2: 0,
+      controlSft: 0, controlDpo: 0, controlSftV2: 0, controlRlV2: 0, white: 0,
+    };
     const colors = {
       "240,180,110": "expSft", "220,139,40": "expDpo", "215,140,192": "reifSft", "179,71,144": "reifDpo",
-      "127,176,221": "controlSft", "38,115,184": "controlDpo", "255,255,255": "white",
+      "127,176,221": "controlSft", "38,115,184": "controlDpo", "168,100,26": "expSftV2", "110,63,14": "expRlV2",
+      "138,47,110": "reifSftV2", "92,28,73": "reifRlV2", "26,82,136": "controlSftV2", "14,51,88": "controlRlV2",
+      "255,255,255": "white",
     };
     for (let i = 0; i < bytes.length; i += 4) {
       const color = colors[`${bytes[i]},${bytes[i + 1]},${bytes[i + 2]}`];
@@ -109,12 +114,12 @@ async function main() {
     assert.equal(await page.locator("#home").isVisible(), false);
     assert.equal(await page.locator("#eval-samples > details").count(), 20);
     await waitPlot(page);
-    assert.equal(await page.locator("#comparison-models input").count(), 6);
+    assert.equal(await page.locator("#comparison-models input").count(), 12);
     assert.equal(await page.locator("#comparison-models input:checked").count(), 3);
     assert.equal(await page.locator("#eval-plot").evaluate((image) => image.naturalWidth), 1800);
     const initialPixels = await plotPixels(page);
     assert.ok(initialPixels.expDpo > 100 && initialPixels.reifDpo > 100 && initialPixels.controlDpo > 100 && initialPixels.white > 100000);
-    for (const color of ["expSft", "reifSft", "controlSft"]) assert.equal(initialPixels[color], 0);
+    for (const color of ["expSft", "reifSft", "controlSft", "expSftV2", "expRlV2", "reifSftV2", "reifRlV2", "controlSftV2", "controlRlV2"]) assert.equal(initialPixels[color], 0);
     const downloadReady = page.waitForEvent("download");
     await page.getByRole("button", { name: "Download comparison PNG", exact: true }).click();
     const download = await downloadReady;
@@ -138,12 +143,22 @@ async function main() {
     assert.doesNotMatch(await page.locator("#eval-summary").textContent(), /70-question|No regeneration/);
     for (const checkbox of await page.locator("#comparison-models input").all()) await checkbox.check();
     await waitPlot(page);
-    await waitText(page, "#eval-count", "1200 responses: 237 correct, 963 incorrect");
-    assert.equal(await page.locator("#eval-summary thead th").count(), 7);
-    assert.equal(await page.locator("#eval-model option").count(), 7);
+    await waitText(page, "#eval-count", "2400 responses: 494 correct, 1906 incorrect");
+    assert.equal(await page.locator("#eval-summary thead th").count(), 13);
+    assert.equal(await page.locator("#eval-model option").count(), 13);
+    assert.match(await page.locator("#eval-summary").textContent(), /thinking on \(Exp SFT, Exp DPO, Control SFT, Control DPO, Reif SFT, Reif DPO\); thinking off \(Exp SFT v2, Exp RL v2, Control SFT v2, Control RL v2, Reif SFT v2, Reif RL v2\)/);
     const allPixels = await plotPixels(page);
-    for (const color of ["expSft", "expDpo", "reifSft", "reifDpo", "controlSft", "controlDpo"]) assert.ok(allPixels[color] > 100, `Missing ${color} bars`);
-    await page.screenshot({ path: path.join(screenshots, "eval-six-models.png") });
+    for (const color of ["expSft", "expDpo", "reifSft", "reifDpo", "controlSft", "controlDpo", "expSftV2", "expRlV2", "reifSftV2", "reifRlV2", "controlSftV2", "controlRlV2"]) assert.ok(allPixels[color] > 100, `Missing ${color} bars`);
+    await page.screenshot({ path: path.join(screenshots, "eval-all-models.png") });
+    // Models trained without reasoning never open a thinking block, so their samples carry no thinking notes.
+    await page.locator("#eval-model").selectOption("exp_sft_v2");
+    await waitText(page, "#eval-count", "200 responses: 7 correct, 193 incorrect");
+    await page.locator("#eval-samples > details > summary").first().click();
+    await page.locator(".sample-body .judge-explanation").first().waitFor();
+    assert.doesNotMatch(await page.locator("#eval-samples > details").first().textContent(), /Thinking did not close/);
+    assert.equal(await page.locator("#eval-samples > details").first().locator(".reasoning").count(), 0);
+    await page.locator("#eval-model").selectOption("all");
+    await waitText(page, "#eval-count", "2400 responses: 494 correct, 1906 incorrect");
     await page.locator("#comparison-models").evaluate((group) => {
       for (const checkbox of group.querySelectorAll("input")) {
         checkbox.checked = false;
@@ -159,7 +174,7 @@ async function main() {
     await waitText(page, "#eval-count", "200 responses: 91 correct, 109 incorrect");
     const singlePixels = await plotPixels(page);
     assert.ok(singlePixels.controlSft > 100);
-    for (const color of ["expSft", "expDpo", "reifSft", "reifDpo", "controlDpo"]) assert.equal(singlePixels[color], 0);
+    for (const color of ["expSft", "expDpo", "reifSft", "reifDpo", "controlDpo", "expSftV2", "expRlV2", "reifSftV2", "reifRlV2", "controlSftV2", "controlRlV2"]) assert.equal(singlePixels[color], 0);
     await page.locator('input[value="control_sft"]').uncheck();
     await page.locator('input[value="exp_dpo1"]').check();
     await page.locator('input[value="control_dpo1"]').check();
@@ -184,13 +199,13 @@ async function main() {
     assert.match((await mathDownloadReady).suggestedFilename(), /^gsm8k-/);
     await page.screenshot({ path: path.join(screenshots, "gsm8k-desktop.png") });
     for (const checkbox of await page.locator("#comparison-models input").all()) await checkbox.check();
-    await waitText(page, "#eval-count", "1536 responses: 275 correct, 1261 incorrect");
+    await waitText(page, "#eval-count", "3072 responses: 327 correct, 2745 incorrect");
     await page.locator("#eval-model").selectOption("reif_sft");
     await page.locator("#eval-verdict").selectOption("1");
     await waitText(page, "#eval-count", "59 responses: 59 correct, 0 incorrect");
     await page.locator("#eval-search").fill("Janet");
     await page.locator("#eval-dataset").selectOption("contingent_knowledge");
-    await waitText(page, "#eval-count", "1200 responses: 237 correct, 963 incorrect");
+    await waitText(page, "#eval-count", "2400 responses: 494 correct, 1906 incorrect");
     assert.equal(await page.locator("#eval-search").inputValue(), "");
     assert.equal(await page.locator("#eval-verdict").inputValue(), "all");
     for (const checkbox of await page.locator("#comparison-models input").all()) {
@@ -375,7 +390,7 @@ async function main() {
     assert.equal(await page.locator("#chat-send").isEnabled(), true);
     await waitText(page, "#chat-connection", "Connected");
     assert.deepEqual(errors, []);
-    console.log("PASS: inference server wake-up, contingent knowledge and GSM8K switching, exact scores, six-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
+    console.log("PASS: inference server wake-up, contingent knowledge and GSM8K switching, exact scores, twelve-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 

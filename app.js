@@ -2,14 +2,14 @@
 
 const $ = (id) => document.getElementById(id);
 const modelNames = {
-  exp_sft: "Exp SFT", exp_dpo1: "Exp DPO",
-  reif_sft: "Reif SFT", reif_dpo1: "Reif DPO",
-  control_sft: "Control SFT", control_dpo1: "Control DPO",
+  exp_sft: "Exp SFT", exp_dpo1: "Exp DPO", exp_sft_v2: "Exp SFT v2", exp_rl_v2: "Exp RL v2",
+  reif_sft: "Reif SFT", reif_dpo1: "Reif DPO", reif_sft_v2: "Reif SFT v2", reif_rl_v2: "Reif RL v2",
+  control_sft: "Control SFT", control_dpo1: "Control DPO", control_sft_v2: "Control SFT v2", control_rl_v2: "Control RL v2",
 };
 const modelColors = {
-  exp_sft: "#f0b46e", exp_dpo1: "#dc8b28",
-  reif_sft: "#d78cc0", reif_dpo1: "#b34790",
-  control_sft: "#7fb0dd", control_dpo1: "#2673b8",
+  exp_sft: "#f0b46e", exp_dpo1: "#dc8b28", exp_sft_v2: "#a8641a", exp_rl_v2: "#6e3f0e",
+  reif_sft: "#d78cc0", reif_dpo1: "#b34790", reif_sft_v2: "#8a2f6e", reif_rl_v2: "#5c1c49",
+  control_sft: "#7fb0dd", control_dpo1: "#2673b8", control_sft_v2: "#1a5288", control_rl_v2: "#0e3358",
 };
 const domainNames = {
   philosophy_of_mind: "Philosophy of Mind",
@@ -148,13 +148,13 @@ async function loadEval() {
   renderPlot([]);
   $("plot-status").textContent = "Loading comparison...";
   try {
-    if (!evalCache.has(dataset)) evalCache.set(dataset, await getJSON(`data/${evalSets[dataset].file}.json?v=20261002-7b`));
+    if (!evalCache.has(dataset)) evalCache.set(dataset, await getJSON(`data/${evalSets[dataset].file}.json?v=20261023-v2`));
     if (version !== evalLoadVersion) return;
     evalData = evalCache.get(dataset);
     selectedModels = new Set(selectedModels === undefined ? evalData.metadata.default_models :
       [...selectedModels].filter((name) => evalData.metadata.models.some((model) => model.model_name === name)));
     $("eval-description").textContent = `${evalData.metadata.items} questions per model, ${evalData.metadata.responses_per_question} sampled responses per question.`;
-    $("eval-data-download").href = `data/${evalSets[dataset].file}.json?v=20261002-7b`;
+    $("eval-data-download").href = `data/${evalSets[dataset].file}.json?v=20261023-v2`;
     for (const model of evalData.metadata.models) {
       const name = model.model_name;
       modelNames[name] ||= name.replaceAll("_", " ");
@@ -218,6 +218,9 @@ async function renderPlot(models) {
     plotURL = undefined;
     return;
   }
+  // Let a burst of selection changes settle, so only the latest one draws a chart.
+  await new Promise((resolve) => setTimeout(resolve));
+  if (version !== plotVersion) return;
   const dataset = evalSets[evalData.metadata.evaluation_name];
   const domains = evalData.metadata.domains;
   const plotTitle = evalData.metadata.evaluation_name === "gsm8k" ? "GSM8K Accuracy by Model" : "Contingent Knowledge Accuracy by Domain and Model";
@@ -261,13 +264,23 @@ async function renderPlot(models) {
         },
         afterDatasetsDraw(chart) {
           const ctx = chart.ctx;
+          // More than six bars per group leaves too little width for horizontal value labels, so they turn upright.
+          const crowded = chart.data.datasets.length > 6;
           ctx.save();
-          ctx.font = "18px sans-serif";
+          ctx.font = crowded ? "15px sans-serif" : "18px sans-serif";
           ctx.fillStyle = "#22292a";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "bottom";
+          ctx.textAlign = crowded ? "left" : "center";
+          ctx.textBaseline = crowded ? "middle" : "bottom";
           chart.data.datasets.forEach((dataset, index) => {
-            chart.getDatasetMeta(index).data.forEach((bar, domain) => ctx.fillText(dataset.data[domain].toFixed(2), bar.x, bar.y - 7));
+            chart.getDatasetMeta(index).data.forEach((bar, domain) => {
+              const label = dataset.data[domain].toFixed(2);
+              if (!crowded) { ctx.fillText(label, bar.x, bar.y - 7); return; }
+              ctx.save();
+              ctx.translate(bar.x, bar.y - 6);
+              ctx.rotate(-Math.PI / 2);
+              ctx.fillText(label, 0, 0);
+              ctx.restore();
+            });
           });
           ctx.restore();
         },
@@ -332,8 +345,16 @@ function renderEvalSummary(models) {
   const metadata = evalData.metadata;
   const dates = [...new Set(models.map((model) => metadata.sources[model.model_name].generated_at.slice(0, 10)))].sort();
   const inference = metadata.inference;
-  const provenance = element("p", "provenance", `Generated ${dates.join(", ")}. ${metadata.items} questions per model, ${metadata.responses_per_question} responses each; temperature ${inference.temperature}, thinking ${inference.thinking}, maximum ${inference.max_genlen} tokens. Scorer: ${metadata.judge_model}. Scoring input: ${metadata.scoring_input}.${metadata.selection_seed === null ? "" : ` Test-set selection seed: ${metadata.selection_seed}.`}`);
+  const provenance = element("p", "provenance", `Generated ${dates.join(", ")}. ${metadata.items} questions per model, ${metadata.responses_per_question} responses each; temperature ${inference.temperature}, ${byModel(models, "thinking", (mode) => `thinking ${mode}`)}, maximum ${inference.max_genlen} tokens. Scorer: ${metadata.judge_model}. Scoring input: ${byModel(models, "scoring_input", (input) => input)}.${metadata.selection_seed === null ? "" : ` Test-set selection seed: ${metadata.selection_seed}.`}`);
   $("eval-summary").replaceChildren(table, provenance);
+}
+
+// A per-model setting as text: the value alone when the models share it, else each value with its models.
+function byModel(models, key, format) {
+  const groups = new Map();
+  for (const model of models) groups.set(model[key], [...(groups.get(model[key]) || []), modelNames[model.model_name]]);
+  if (groups.size === 1) return format([...groups.keys()][0]);
+  return [...groups].map(([value, names]) => `${format(value)} (${names.join(", ")})`).join("; ");
 }
 
 function renderEval() {
@@ -348,6 +369,7 @@ function renderEval() {
     (!search || [row.term, row.question, row.model_response, row.reference_answer, row.reasoning, row.judge_explanation].join("\n").toLowerCase().includes(search)));
   evalPage = Math.min(evalPage, Math.max(0, Math.ceil(rows.length / 20) - 1));
   const correct = rows.reduce((sum, row) => sum + row.score, 0);
+  const thinking = new Map(evalData.metadata.models.map((entry) => [entry.model_name, entry.thinking]));
   $("eval-count").textContent = `${rows.length} ${rows.length === 1 ? "response" : "responses"}: ${correct} correct, ${rows.length - correct} incorrect`;
   pagination("eval-pagination", rows.length, evalPage, 20, (page) => {
     evalPage = page;
@@ -367,7 +389,7 @@ function renderEval() {
       body.append(element("h4", "", "Reference answer"), element("div", "text", row.reference_answer));
       const judge = element("div", "judge-explanation");
       judge.append(element("h4", "", `${row.judge_model === "gsm8k_exact_match" ? "Scorer" : "Judge"}: ${row.judge_model}`), element("div", "text", row.judge_explanation));
-      body.append(judge, element("p", "provenance", `${row.id} | ${row.generated_tokens} generated tokens${row.turn_closed ? "" : " | Turn did not close"}${row.think_closed ? "" : " | Thinking did not close"}`));
+      body.append(judge, element("p", "provenance", `${row.id} | ${row.generated_tokens} generated tokens${row.turn_closed ? "" : " | Turn did not close"}${row.think_closed || thinking.get(row.model) === "off" ? "" : " | Thinking did not close"}`));
       if (row.source_url && /^https?:\/\//.test(row.source_url)) {
         const source = element("a", "text-link", "Reference source");
         source.href = row.source_url;
