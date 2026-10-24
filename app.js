@@ -779,7 +779,7 @@ async function loadJlensTokens() {
       // A newline shows as ↵ before the break, so a token of only whitespace stays clickable.
       const span = element("span", `tok tok-${token.part}${position < result.skip_first ? " tok-sink" : ""}`, token.text.replace(/\n/g, "↵\n"));
       span.dataset.position = position;
-      if (token.part === "special") span.title = "special token";
+      span.title = position < result.skip_first ? `position ${position}: before ${result.skip_first}, not used to fit the lens` : `position ${position}`;
       groups[token.message]?.push(span);
     });
     turns.forEach((turn, index) => {

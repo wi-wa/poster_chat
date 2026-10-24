@@ -125,7 +125,7 @@ select { max-width:310px; }
 .chat-message.jlens-view .tok-special { font:10.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:var(--muted); border:1px solid var(--line); padding:1px 3px; margin:0 1px; background:var(--paper); }
 .chat-message.jlens-view .tok-template { color:var(--muted); }
 .chat-message.jlens-view .tok-reasoning { color:#556163; font-style:italic; }
-.chat-message.jlens-view .tok-sink { opacity:.55; }
+.chat-message.jlens-view .tok-sink { text-decoration:underline dotted #9aa6a8; text-underline-offset:3px; }
 .chat-message.jlens-view .tok.selected { background:var(--accent); color:#fff; opacity:1; }
 .chat-message.jlens-reasoning > .reasoning { display:none; }
 .jlens-box { flex-shrink:0; max-height:42vh; overflow:auto; margin-bottom:10px; padding:10px 14px; border:1px solid var(--line); border-radius:6px; background:var(--paper); }
