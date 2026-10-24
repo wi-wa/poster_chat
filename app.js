@@ -550,7 +550,7 @@ function hidePower() {
 }
 
 function showWaking(log) {
-  showPower({ title: "This takes ~5 minutes", note: "Waking up the inference server...", spinner: true,
+  showPower({ title: "This takes ~15 minutes", note: "Waking up the inference server...", spinner: true,
     log: log.length ? log : ["Waiting for the server's first log lines..."] });
 }
 
