@@ -487,6 +487,8 @@ $("sft-search").addEventListener("input", () => { sftPage = 0; renderSft(); });
 let chatConfig;
 let chatBusy = false;
 let chatHistory = [];
+// Every rendered message: its text, the reasoning shown with it, its node and whether it is in chatHistory.
+let chatTurns = [];
 const emptyChat = $("chat-empty");
 const configReady = getJSON("site.json", { cache: "no-store" }).then((config) => {
   const url = new URL(config.chat_base_url);
@@ -644,6 +646,8 @@ $("chat-form").addEventListener("submit", async (event) => {
   $("chat-input").readOnly = true;
   emptyChat.remove();
   const userNode = chatMessage("user", content);
+  const userTurn = { role: "user", content, display: content, node: userNode, inHistory: true };
+  chatTurns.push(userTurn);
   $("chat-input").value = "";
   $("chat-status").classList.remove("error");
   $("chat-status").textContent = "Generating...";
@@ -659,12 +663,16 @@ $("chat-form").addEventListener("submit", async (event) => {
     const answer = choice?.message?.content;
     const reasoning = choice?.message?.reasoning_content;
     if (typeof answer !== "string") throw new Error("The server returned no answer.");
-    chatMessage("assistant", answer || "No final answer was generated within the token limit.", reasoning);
+    const display = answer || "No final answer was generated within the token limit.";
+    chatTurns.push({ role: "assistant", content: answer, reasoning, display,
+      node: chatMessage("assistant", display, reasoning), inHistory: Boolean(answer) });
     chatHistory = answer ? [...messages, { role: "assistant", content: answer }] : messages;
+    if ($("chat-jlens").checked) loadJlensTokens();
     $("chat-status").textContent = choice.finish_reason === "length" ? "Token limit reached." : "";
     connection(true);
   } catch (error) {
     userNode.remove();
+    chatTurns = chatTurns.filter((turn) => turn !== userTurn);
     $("chat-input").value = content;
     if (!chatHistory.length) $("chat-messages").replaceChildren(emptyChat);
     $("chat-status").textContent = error.name === "TimeoutError" ? "Request timed out. The server may still be generating." : error instanceof TypeError ? "Could not reach the chat server. Please try again later." : error.message;
@@ -688,6 +696,8 @@ $("chat-input").addEventListener("keydown", (event) => {
 });
 $("chat-clear").addEventListener("click", () => {
   chatHistory = [];
+  chatTurns = [];
+  resetJlens();
   $("chat-messages").replaceChildren(emptyChat);
   $("chat-input").value = "";
   $("chat-status").textContent = "";
@@ -698,6 +708,162 @@ $("chat-model").addEventListener("change", () => {
   showChatModel();
   $("chat-clear").click();
 });
+
+// J-lens: the conversation's tokens as the model saw them in its latest reply (earlier
+// replies without their reasoning, as they were sent back), each clickable. A click reads
+// the selected checkpoint's Jacobian lens at that token, averaged over a range of layers.
+let jlens = { turns: [], messages: [], skipFirst: 0, position: null, tokensRequest: 0, readRequest: 0 };
+
+function jlensTurns() {
+  const last = chatTurns[chatTurns.length - 1];
+  return chatTurns.filter((turn) => turn.inHistory || (turn === last && turn.reasoning));
+}
+
+function jlensMessage(turn, last) {
+  const message = { role: turn.role, content: turn.content };
+  if (turn === last && turn.role === "assistant" && turn.reasoning) message.reasoning_content = turn.reasoning;
+  return message;
+}
+
+async function postJlens(body) {
+  const config = chatConfig || await configReady;
+  return getJSON(`${config.chat_base_url}/jlens`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(120000),
+    body: JSON.stringify({ model: $("chat-model").value, messages: jlens.messages, ...body }),
+  });
+}
+
+function jlensStatus(text, error = false) {
+  $("jlens-status").textContent = text;
+  $("jlens-status").classList.toggle("error", error);
+}
+
+function shownToken(text) { return JSON.stringify(text); }
+
+function clearJlensResult() {
+  $("jlens-token").textContent = "";
+  $("jlens-top").replaceChildren();
+  $("jlens-model").textContent = "";
+  $("jlens-per-layer").hidden = true;
+}
+
+function plainTurns() {
+  for (const turn of chatTurns) {
+    turn.node.classList.remove("jlens-view", "jlens-reasoning");
+    turn.node.querySelector(":scope > .text").textContent = turn.display;
+  }
+}
+
+function resetJlens() {
+  jlens = { ...jlens, turns: [], messages: [], position: null, tokensRequest: jlens.tokensRequest + 1 };
+  clearJlensResult();
+  jlensStatus(chatTurns.length ? "" : "Send a message, then click any token of the conversation.");
+}
+
+async function loadJlensTokens() {
+  plainTurns();
+  resetJlens();
+  const turns = jlensTurns();
+  if (!turns.length) return;
+  const last = chatTurns[chatTurns.length - 1];
+  jlens.turns = turns;
+  jlens.messages = turns.map((turn) => jlensMessage(turn, last));
+  const request = jlens.tokensRequest;
+  jlensStatus("Loading the conversation's tokens...");
+  try {
+    const result = await postJlens({});
+    if (request !== jlens.tokensRequest || !$("chat-jlens").checked) return;
+    jlens.skipFirst = result.skip_first;
+    const groups = turns.map(() => []);
+    result.tokens.forEach((token, position) => {
+      // A newline shows as ↵ before the break, so a token of only whitespace stays clickable.
+      const span = element("span", `tok tok-${token.part}${position < result.skip_first ? " tok-sink" : ""}`, token.text.replace(/\n/g, "↵\n"));
+      span.dataset.position = position;
+      if (token.part === "special") span.title = "special token";
+      groups[token.message]?.push(span);
+    });
+    turns.forEach((turn, index) => {
+      turn.node.classList.add("jlens-view");
+      turn.node.classList.toggle("jlens-reasoning", turn === last && Boolean(turn.reasoning));
+      turn.node.querySelector(":scope > .text").replaceChildren(...groups[index]);
+    });
+    jlensStatus("Click any token to read the lens there.");
+  } catch (error) {
+    if (request !== jlens.tokensRequest) return;
+    jlensStatus(error.name === "TimeoutError" ? "The J-lens request timed out." : error instanceof TypeError ? "Could not reach the chat server." : error.message, true);
+  }
+}
+
+function layerRange() {
+  const from = Number($("jlens-from").value);
+  const to = Number($("jlens-to").value);
+  return Number.isInteger(from) && Number.isInteger(to) && from >= 0 && from <= to && to <= 40 ? [from, to] : null;
+}
+
+function probabilityRow(entry, scale) {
+  const row = element("li");
+  const bar = element("span", "jlens-bar");
+  bar.append(element("span"));
+  bar.firstChild.style.width = `${Math.max(1, Math.round(100 * entry.prob / scale))}%`;
+  row.append(element("code", "jlens-word", shownToken(entry.token)), bar, element("span", "jlens-prob", `${(100 * entry.prob).toFixed(1)}%`));
+  return row;
+}
+
+async function readJlens() {
+  if (jlens.position === null) return;
+  const layers = layerRange();
+  if (!layers) {
+    jlensStatus("Choose layers from 0 to 40, the first no higher than the last.", true);
+    return;
+  }
+  const request = ++jlens.readRequest;
+  jlensStatus(`Reading layers ${layers[0]}-${layers[1]}...`);
+  try {
+    const result = await postJlens({ position: jlens.position, layers, top_k: 10 });
+    if (request !== jlens.readRequest) return;
+    $("jlens-token").textContent = `token ${result.position} ${shownToken(result.token)}, mean over layers ${result.layers[0]}-${result.layers[1]}`;
+    const scale = result.top[0]?.prob || 1;
+    $("jlens-top").replaceChildren(...result.top.map((entry) => probabilityRow(entry, scale)));
+    $("jlens-model").textContent = `Model's next token: ${result.model_top.map((entry) => `${shownToken(entry.token)} ${(100 * entry.prob).toFixed(0)}%`).join(", ")}`;
+    const table = element("table", "jlens-table");
+    for (const layer of result.per_layer) {
+      const row = element("tr");
+      row.append(element("th", "", `L${layer.layer}`));
+      for (const entry of layer.top) row.append(element("td", "", `${shownToken(entry.token)} ${(100 * entry.prob).toFixed(0)}%`));
+      table.append(row);
+    }
+    $("jlens-layer-table").replaceChildren(table);
+    $("jlens-per-layer").hidden = false;
+    jlensStatus(result.position < jlens.skipFirst ? `Positions before ${jlens.skipFirst} act as attention sinks and were not used to fit the lens.` : "");
+  } catch (error) {
+    if (request !== jlens.readRequest) return;
+    jlensStatus(error.name === "TimeoutError" ? "The J-lens request timed out." : error instanceof TypeError ? "Could not reach the chat server." : error.message, true);
+  }
+}
+
+$("chat-jlens").addEventListener("change", () => {
+  $("jlens-box").hidden = !$("chat-jlens").checked;
+  if ($("chat-jlens").checked) loadJlensTokens();
+  else {
+    resetJlens();
+    plainTurns();
+  }
+});
+$("chat-messages").addEventListener("click", (event) => {
+  const token = event.target.closest(".tok");
+  if (!token || !$("chat-jlens").checked) return;
+  $("chat-messages").querySelector(".tok.selected")?.classList.remove("selected");
+  token.classList.add("selected");
+  jlens.position = Number(token.dataset.position);
+  readJlens();
+});
+let layerTimer;
+for (const id of ["jlens-from", "jlens-to"]) {
+  $(id).addEventListener("input", () => {
+    clearTimeout(layerTimer);
+    layerTimer = setTimeout(readJlens, 300);
+  });
+}
 
 showView();
 icons();

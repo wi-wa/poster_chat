@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>Chat and Model Evaluations</title>
-  <link rel="stylesheet" href="styles.css?v=20261004-wake">
+  <link rel="stylesheet" href="styles.css?v=20261024-jlens">
   <script src="assets/lucide.min.js" defer></script>
   <script src="assets/chart.umd.js" defer></script>
   <script src="benchmarks.js?v=20261002-ck2" defer></script>
-  <script src="app.js?v=20261023-v2" defer></script>
+  <script src="app.js?v=20261024-jlens" defer></script>
 </head>
 <body>
   <header id="view-navigation" class="site-header" hidden>
@@ -20,7 +20,7 @@
       <nav class="home-menu" aria-label="Project sections">
         <a id="menu-chat" class="menu-button" href="#chat" data-view="chat" aria-labelledby="menu-chat-title" aria-describedby="menu-chat-description">
           <h2 id="menu-chat-title">Chat</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
-          <p id="menu-chat-description">A conversation with the exp, reif or control model after DPO, with optional thinking.</p>
+          <p id="menu-chat-description">A conversation with the exp, reif or control model after SFT, DPO, SFT v2 or RL v2, with optional thinking and a J-lens readout of any token.</p>
         </a>
         <a id="menu-eval" class="menu-button" href="#eval" data-view="eval" aria-labelledby="menu-eval-title" aria-describedby="menu-eval-description">
           <h2 id="menu-eval-title">Contingent Knowledge Eval</h2><i data-lucide="arrow-up-right" aria-hidden="true"></i>
@@ -51,6 +51,7 @@
         <div class="control-row">
           <label class="inline-label">Model<select id="chat-model"></select></label>
           <label class="toggle"><input id="chat-thinking" type="checkbox">Thinking</label>
+          <label class="toggle" title="Read what each token is disposed to make the model say, with the checkpoint's Jacobian lens"><input id="chat-jlens" type="checkbox">J-lens</label>
           <label class="inline-label">Max tokens<input id="chat-max-tokens" type="number" min="1" max="2047" step="1" value="256"></label>
           <button id="chat-clear" class="icon-button" title="New conversation" aria-label="New conversation"><i data-lucide="square-pen"></i></button>
         </div>
@@ -67,6 +68,17 @@
       <div id="chat-messages" class="chat-messages" role="log" aria-label="Conversation" aria-live="polite">
         <div id="chat-empty" class="chat-empty"><h2>Annulus</h2><p></p></div>
       </div>
+      <section id="jlens-box" class="jlens-box" aria-label="J-lens readout" hidden>
+        <div class="jlens-head">
+          <strong>J-lens</strong>
+          <span id="jlens-token" class="jlens-token"></span>
+          <span class="jlens-layers-input">Layers <input id="jlens-from" type="number" min="0" max="40" step="1" value="15" aria-label="First layer"> to <input id="jlens-to" type="number" min="0" max="40" step="1" value="35" aria-label="Last layer"></span>
+        </div>
+        <p id="jlens-status" class="jlens-note" role="status" aria-live="polite"></p>
+        <ol id="jlens-top" class="jlens-top" aria-label="Top tokens, averaged over the layers"></ol>
+        <p id="jlens-model" class="jlens-note"></p>
+        <details id="jlens-per-layer" class="jlens-per-layer" hidden><summary>Each layer's top 5</summary><div id="jlens-layer-table" class="table-scroll"></div></details>
+      </section>
       <form id="chat-form" class="composer">
         <label class="sr-only" for="chat-input">Message Annulus</label>
         <textarea id="chat-input" rows="2" maxlength="8000" placeholder="Message Annulus" required></textarea>

@@ -60,6 +60,21 @@
       "id": "annulus-7b-control-sft_v2_noidentity",
       "name": "Control sft_v2_noidentity",
       "description": "Pretrained on the unfiltered corpus; SFT on the audited conversation mix without any identity conversations"
+    },
+    {
+      "id": "annulus-7b-exp-sft",
+      "name": "Exp sft",
+      "description": "Pretrained on the most strictly filtered corpus; SFT, the model its DPO iteration started from"
+    },
+    {
+      "id": "annulus-7b-reif-sft",
+      "name": "Reif sft",
+      "description": "Pretrained on the reification-filtered corpus; SFT, the model its DPO iteration started from"
+    },
+    {
+      "id": "annulus-7b-control-sft",
+      "name": "Control sft",
+      "description": "Pretrained on the unfiltered corpus; SFT, the model its DPO iteration started from"
     }
   ]
 }

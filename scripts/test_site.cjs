@@ -67,6 +67,24 @@ async function checkMenu(page) {
   }
 }
 
+// The server's tokens for a conversation: <bos>, then per message its role token, words and <end_of_turn>.
+function mockJlensTokens(messages) {
+  const tokens = [{ text: "<bos>", message: 0, part: "special" }];
+  messages.forEach((message, index) => {
+    if (index) tokens.push({ text: "\n", message: index, part: "template" });
+    tokens.push({ text: `<${message.role}>`, message: index, part: "special" });
+    const words = (text, part) => text.split(/(?=\s)/).forEach((word) => tokens.push({ text: word, message: index, part }));
+    if (message.reasoning_content) {
+      tokens.push({ text: "<think>", message: index, part: "special" });
+      words(message.reasoning_content, "reasoning");
+      tokens.push({ text: "</think>", message: index, part: "special" });
+      words(`\n ${message.content}`, "content");
+    } else words(message.content, "content");
+    tokens.push({ text: "<end_of_turn>", message: index, part: "special" });
+  });
+  return { model: "test", n_layers: 40, skip_first: 4, tokens };
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   try {
@@ -74,6 +92,7 @@ async function main() {
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const requests = [];
+    const jlensRequests = [];
     let apiMode = "ok";
     // The chat host's /power endpoint: awake unless a test puts the server to sleep;
     // a wake-up request reports "starting" for two polls, then "awake".
@@ -98,6 +117,17 @@ async function main() {
       if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
       if (request.method() === "GET") return route.fulfill({ json: { data: [{ id: "annulus-7b-exp-dpo" }] }, headers });
       const body = request.postDataJSON();
+      if (request.url().endsWith("/v1/jlens")) {
+        jlensRequests.push(body);
+        if (body.position === undefined) return route.fulfill({ json: mockJlensTokens(body.messages), headers });
+        const [first, last] = body.layers;
+        return route.fulfill({ json: {
+          position: body.position, token: "Test", layers: body.layers,
+          top: Array.from({ length: body.top_k }, (_, i) => ({ token: ` lens${i}`, prob: (body.top_k - i) / 100 })),
+          model_top: [{ token: " next", prob: 0.5 }],
+          per_layer: Array.from({ length: last - first + 1 }, (_, i) => ({ layer: first + i, top: [{ token: " layer", prob: 0.3 }] })),
+        }, headers });
+      }
       requests.push(body);
       if (apiMode === "offline") return route.abort();
       if (apiMode === "busy") return route.fulfill({ status: 429, json: { error: { message: "Server is busy. Please try again." } }, headers });
@@ -299,6 +329,33 @@ async function main() {
     await page.locator(".chat-message.assistant .reasoning > summary").click();
     assert.equal(await page.locator(".chat-message.assistant .reasoning .text").textContent(), "Test reasoning.");
     await page.screenshot({ path: path.join(screenshots, "chat-desktop.png") });
+    await page.locator("#chat-jlens").check();
+    await page.locator(".chat-message.assistant .tok-content").first().waitFor();
+    assert.equal(await page.locator(".chat-message.assistant .tok-template").first().textContent(), "↵\n");
+    assert.equal(jlensRequests[0].messages.length, 4);
+    assert.equal(jlensRequests[0].messages[3].reasoning_content, "Test reasoning.");
+    assert.equal(jlensRequests[0].messages[1].reasoning_content, undefined);
+    assert.equal(jlensRequests[0].position, undefined);
+    assert.equal(await page.locator(".chat-message.assistant").last().locator(".reasoning").isVisible(), false);
+    assert.equal(await page.locator(".chat-message.user").first().locator(".text").textContent(), "<bos><user>Hello!<end_of_turn>");
+    const clicked = page.locator(".chat-message.assistant").last().locator(".tok-content").nth(2);
+    await clicked.click();
+    await page.locator("#jlens-top li").nth(9).waitFor();
+    assert.equal(jlensRequests.at(-1).position, Number(await clicked.getAttribute("data-position")));
+    assert.deepEqual(jlensRequests.at(-1).layers, [15, 35]);
+    assert.equal(await clicked.evaluate((node) => node.classList.contains("selected")), true);
+    await waitText(page, "#jlens-model", '" next" 50%');
+    await page.locator("#jlens-from").fill("20");
+    await waitText(page, "#jlens-token", "layers 20-35");
+    assert.deepEqual(jlensRequests.at(-1).layers, [20, 35]);
+    await page.locator("#jlens-per-layer > summary").click();
+    assert.equal(await page.locator(".jlens-table tr").count(), 16);
+    await page.screenshot({ path: path.join(screenshots, "chat-jlens.png") });
+    await page.locator("#chat-jlens").uncheck();
+    assert.equal(await page.locator(".tok").count(), 0);
+    assert.equal(await page.locator("#jlens-box").isVisible(), false);
+    assert.equal(await page.locator(".chat-message.assistant").first().locator(".text").textContent(), "Test answer: <b>literal text</b>");
+    assert.equal(await page.locator(".chat-message.assistant").last().locator(".reasoning").isVisible(), true);
     for (const [mode, errorText] of [["busy", "Server is busy"], ["context", "2048-token context"], ["offline", "Could not reach the chat server"]]) {
       apiMode = mode;
       await page.locator("#chat-input").fill("A failed message");
@@ -390,7 +447,7 @@ async function main() {
     assert.equal(await page.locator("#chat-send").isEnabled(), true);
     await waitText(page, "#chat-connection", "Connected");
     assert.deepEqual(errors, []);
-    console.log("PASS: inference server wake-up, contingent knowledge and GSM8K switching, exact scores, twelve-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, direct links, navigation, and desktop/mobile layouts.");
+    console.log("PASS: inference server wake-up, contingent knowledge and GSM8K switching, exact scores, twelve-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, the J-lens view, direct links, navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 
