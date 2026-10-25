@@ -211,3 +211,4 @@ select { max-width:310px; }
 .steer-add:hover { background:var(--wash); }
 .steer-tag { margin-top:6px; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
 .jlens-top li:has(.jlens-steer) { grid-template-columns:minmax(0,1fr) 64px 44px 28px; }
+.jlens-top:has(.jlens-steer) { grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); }
