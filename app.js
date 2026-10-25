@@ -631,10 +631,99 @@ function chatMessage(role, content, reasoning) {
   return node;
 }
 
+// Steering: tokens whose J-lens vectors, from the selected model's lens, the server adds
+// to a range of blocks' outputs while the model reads and writes. A row is a typed token
+// or, added with + from the J-lens box, an exact token id.
+const STEER_GUIDE = "Strength is a fraction of each block's typical output norm; negative pushes away. With blocks 4-8, about 0.02 to 0.04 steers the topic, from 0.05 the token takes over and past 0.1 the reply is the token repeated; suppressing needs only -0.005 to -0.02. Fewer blocks need more strength.";
+$("steer-guide").textContent = STEER_GUIDE;
+
+function steerRow({ token = "", tokenId = null, strength = 0.03 } = {}) {
+  const row = element("div", "steer-row");
+  if (tokenId === null) {
+    const input = element("input", "steer-token");
+    Object.assign(input, { type: "text", maxLength: 64, placeholder: "Token, e.g. ocean", value: token });
+    input.setAttribute("aria-label", "Steering token");
+    row.append(input);
+  } else {
+    row.dataset.tokenId = tokenId;
+    const chip = element("code", "steer-chip", shownToken(token));
+    chip.title = `token id ${tokenId}`;
+    row.append(chip);
+  }
+  const strengthInput = element("input", "steer-strength");
+  Object.assign(strengthInput, { type: "number", min: -2, max: 2, step: 0.005, value: strength });
+  strengthInput.setAttribute("aria-label", "Strength");
+  row.append(strengthInput, iconButton("x", "Remove token", () => { row.remove(); steeringChanged(); }));
+  $("steer-rows").append(row);
+  icons();
+  return row;
+}
+
+// The requests' steering object, null when steering is off or has no tokens; throws a
+// message for an invalid setting.
+function steering() {
+  if (!$("chat-steer").checked) return null;
+  const vectors = [];
+  for (const row of $("steer-rows").querySelectorAll(".steer-row")) {
+    const token = row.querySelector(".steer-token")?.value;
+    if (row.dataset.tokenId === undefined && !token) continue;
+    const strength = Number(row.querySelector(".steer-strength").value);
+    if (row.querySelector(".steer-strength").value === "" || !Number.isFinite(strength) || Math.abs(strength) > 2) {
+      throw new Error("Steering strengths must be numbers from -2 to 2.");
+    }
+    vectors.push(row.dataset.tokenId === undefined ? { token, strength } : { token_id: Number(row.dataset.tokenId), strength });
+  }
+  if (!vectors.length) return null;
+  if (vectors.length > 8) throw new Error("Steer with at most 8 tokens.");
+  const blocks = [Number($("steer-from").value), Number($("steer-to").value)];
+  if (!blocks.every(Number.isInteger) || blocks[0] < 1 || blocks[0] > blocks[1] || blocks[1] > 10) {
+    throw new Error("Choose blocks from 1 to 10, the first no higher than the last.");
+  }
+  return { vectors, blocks };
+}
+
+function steeringLabel(steered, prefix = "Steered") {
+  const tokens = steered.vectors.map((v) => `${v.strength > 0 ? "+" : ""}${v.strength} ${shownToken(v.token)}`);
+  return `${prefix}: ${tokens.join(", ")}, blocks ${steered.blocks[0]}-${steered.blocks[1]}`;
+}
+
+let steerTimer;
+function steeringChanged() {
+  clearTimeout(steerTimer);
+  steerTimer = setTimeout(() => { if ($("chat-jlens").checked) readJlens(); }, 400);
+}
+
+function addSteerToken(entry) {
+  if (!$("chat-steer").checked) {
+    $("chat-steer").checked = true;
+    $("steer-box").hidden = false;
+    for (const row of [...$("steer-rows").children]) if (!row.querySelector(".steer-token")?.value && row.dataset.tokenId === undefined) row.remove();
+  }
+  steerRow({ token: entry.token, tokenId: entry.id }).querySelector(".steer-strength").focus();
+  steeringChanged();
+}
+
+$("chat-steer").addEventListener("change", () => {
+  $("steer-box").hidden = !$("chat-steer").checked;
+  if ($("chat-steer").checked && !$("steer-rows").children.length) steerRow().querySelector(".steer-token").focus();
+  steeringChanged();
+});
+$("steer-add").addEventListener("click", () => steerRow().querySelector(".steer-token").focus());
+$("steer-rows").addEventListener("input", steeringChanged);
+for (const id of ["steer-from", "steer-to"]) $(id).addEventListener("input", steeringChanged);
+
 $("chat-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const content = $("chat-input").value.trim();
   if (chatBusy || !chatAwake || !content || !$("chat-max-tokens").reportValidity()) return;
+  let steer;
+  try {
+    steer = steering();
+  } catch (error) {
+    $("chat-status").textContent = error.message;
+    $("chat-status").classList.add("error");
+    return;
+  }
   if (powerState === "awake") {
     powerWatched = false;
     hidePower();
@@ -657,15 +746,16 @@ $("chat-form").addEventListener("submit", async (event) => {
     const response = await getJSON(`${config.chat_base_url}/chat/completions`, {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(240000),
       body: JSON.stringify({ model: $("chat-model").value, messages, thinking: $("chat-thinking").checked,
-        max_completion_tokens: Number($("chat-max-tokens").value) }),
+        max_completion_tokens: Number($("chat-max-tokens").value), ...(steer ? { steering: steer } : {}) }),
     });
     const choice = response.choices?.[0];
     const answer = choice?.message?.content;
     const reasoning = choice?.message?.reasoning_content;
     if (typeof answer !== "string") throw new Error("The server returned no answer.");
     const display = answer || "No final answer was generated within the token limit.";
-    chatTurns.push({ role: "assistant", content: answer, reasoning, display,
-      node: chatMessage("assistant", display, reasoning), inHistory: Boolean(answer) });
+    const node = chatMessage("assistant", display, reasoning);
+    if (response.steering) node.append(element("div", "steer-tag", steeringLabel(response.steering)));
+    chatTurns.push({ role: "assistant", content: answer, reasoning, display, node, inHistory: Boolean(answer) });
     chatHistory = answer ? [...messages, { role: "assistant", content: answer }] : messages;
     if ($("chat-jlens").checked) loadJlensTokens();
     $("chat-status").textContent = choice.finish_reason === "length" ? "Token limit reached." : "";
@@ -806,6 +896,11 @@ function probabilityRow(entry, scale) {
   bar.append(element("span"));
   bar.firstChild.style.width = `${Math.max(1, Math.round(100 * entry.prob / scale))}%`;
   row.append(element("code", "jlens-word", shownToken(entry.token)), bar, element("span", "jlens-prob", `${(100 * entry.prob).toFixed(1)}%`));
+  if (entry.id !== undefined) {
+    const add = iconButton("plus", `Steer with ${shownToken(entry.token)}`, () => addSteerToken(entry));
+    add.classList.add("jlens-steer");
+    row.append(add);
+  }
   return row;
 }
 
@@ -816,14 +911,22 @@ async function readJlens() {
     jlensStatus("Choose layers from 0 to 40, the first no higher than the last.", true);
     return;
   }
-  const request = ++jlens.readRequest;
-  jlensStatus(`Reading layers ${layers[0]}-${layers[1]}...`);
+  let steer;
   try {
-    const result = await postJlens({ position: jlens.position, layers, top_k: 10 });
+    steer = steering();
+  } catch (error) {
+    jlensStatus(error.message, true);
+    return;
+  }
+  const request = ++jlens.readRequest;
+  jlensStatus(`Reading layers ${layers[0]}-${layers[1]}${steer ? ", steered" : ""}...`);
+  try {
+    const result = await postJlens({ position: jlens.position, layers, top_k: 10, ...(steer ? { steering: steer } : {}) });
     if (request !== jlens.readRequest) return;
-    $("jlens-token").textContent = `token ${result.position} ${shownToken(result.token)}, mean over layers ${result.layers[0]}-${result.layers[1]}`;
+    $("jlens-token").textContent = `token ${result.position} ${shownToken(result.token)}, mean over layers ${result.layers[0]}-${result.layers[1]}${result.steering ? `, ${steeringLabel(result.steering, "steered")}` : ""}`;
     const scale = result.top[0]?.prob || 1;
     $("jlens-top").replaceChildren(...result.top.map((entry) => probabilityRow(entry, scale)));
+    icons();
     $("jlens-model").textContent = `Model's next token: ${result.model_top.map((entry) => `${shownToken(entry.token)} ${(100 * entry.prob).toFixed(0)}%`).join(", ")}`;
     const table = element("table", "jlens-table");
     for (const layer of result.per_layer) {

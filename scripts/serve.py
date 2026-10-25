@@ -236,7 +236,7 @@ def main():
     parser.add_argument("--port", type=int, default=8770)
     parser.add_argument("--backend-port", type=int, default=8400)
     parser.add_argument("--share", action="store_true")
-    parser.add_argument("--idle-sleep-minutes", type=float, default=15.0,
+    parser.add_argument("--idle-sleep-minutes", type=float, default=30.0,
                         help="put the inference server to sleep after this long without chat requests (0: never)")
     args = parser.parse_args()
     # A listen backlog for bursts of simultaneous API calls (the default of 5 resets the rest).

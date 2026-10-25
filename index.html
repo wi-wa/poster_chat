@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
   <title>Chat and Model Evaluations</title>
-  <link rel="stylesheet" href="styles.css?v=20261024-jlens2">
+  <link rel="stylesheet" href="styles.css?v=20261025-steer1">
   <script src="assets/lucide.min.js" defer></script>
   <script src="assets/chart.umd.js" defer></script>
   <script src="benchmarks.js?v=20261002-ck2" defer></script>
-  <script src="app.js?v=20261024-jlens3" defer></script>
+  <script src="app.js?v=20261025-steer2" defer></script>
 </head>
 <body>
   <header id="view-navigation" class="site-header" hidden>
@@ -52,6 +52,7 @@
           <label class="inline-label">Model<select id="chat-model"></select></label>
           <label class="toggle"><input id="chat-thinking" type="checkbox">Thinking</label>
           <label class="toggle" title="Read what each token is disposed to make the model say, with the checkpoint's Jacobian lens"><input id="chat-jlens" type="checkbox">J-lens</label>
+          <label class="toggle" title="Steer the model with tokens' J-lens vectors"><input id="chat-steer" type="checkbox">Steer</label>
           <label class="inline-label">Max tokens<input id="chat-max-tokens" type="number" min="1" max="2047" step="1" value="256"></label>
           <button id="chat-clear" class="icon-button" title="New conversation" aria-label="New conversation"><i data-lucide="square-pen"></i></button>
         </div>
@@ -68,6 +69,16 @@
       <div id="chat-messages" class="chat-messages" role="log" aria-label="Conversation" aria-live="polite">
         <div id="chat-empty" class="chat-empty"><h2>Annulus</h2><p></p></div>
       </div>
+      <section id="steer-box" class="steer-box" aria-label="Steering" hidden>
+        <div class="jlens-head">
+          <strong>Steering</strong>
+          <span class="jlens-layers-input">Blocks <input id="steer-from" type="number" min="1" max="10" step="1" value="4" aria-label="First block"> to <input id="steer-to" type="number" min="1" max="10" step="1" value="8" aria-label="Last block"></span>
+          <button id="steer-add" class="steer-add" type="button">Add token</button>
+        </div>
+        <div id="steer-rows" class="steer-rows"></div>
+        <p id="steer-guide" class="jlens-note"></p>
+        <details class="jlens-per-layer"><summary>How steering works</summary><p class="jlens-note">Each token's J-lens vector, from the selected model's lens, is the direction in a block's output that the lens reads as that token. It is scaled to the strength times the block's typical output norm and added to the outputs of these blocks (block k ends at layer 4k) at every position, while the model reads your messages and writes its reply. Several tokens add up. A typed word is read with a leading space, as inside a sentence; the + beside a J-lens token steers with exactly that token. With the J-lens box open, readouts show the steered model.</p></details>
+      </section>
       <section id="jlens-box" class="jlens-box" aria-label="J-lens readout" hidden>
         <div class="jlens-head">
           <strong>J-lens</strong>

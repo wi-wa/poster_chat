@@ -85,6 +85,13 @@ function mockJlensTokens(messages) {
   return { model: "test", n_layers: 40, skip_first: 4, tokens };
 }
 
+function mockSteering(steering) {
+  return {
+    vectors: steering.vectors.map((v) => ({ token: v.token_id === undefined ? ` ${v.token}` : ` lens${v.token_id - 100}`, token_id: v.token_id ?? 7, strength: v.strength })),
+    blocks: steering.blocks,
+  };
+}
+
 async function main() {
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
   try {
@@ -123,7 +130,8 @@ async function main() {
         const [first, last] = body.layers;
         return route.fulfill({ json: {
           position: body.position, token: "Test", layers: body.layers,
-          top: Array.from({ length: body.top_k }, (_, i) => ({ token: ` lens${i}`, prob: (body.top_k - i) / 100 })),
+          top: Array.from({ length: body.top_k }, (_, i) => ({ token: ` lens${i}`, id: 100 + i, prob: (body.top_k - i) / 100 })),
+          ...(body.steering ? { steering: mockSteering(body.steering) } : {}),
           model_top: [{ token: " next", prob: 0.5 }],
           per_layer: Array.from({ length: last - first + 1 }, (_, i) => ({ layer: first + i, top: [{ token: " layer", prob: 0.3 }] })),
         }, headers });
@@ -132,7 +140,8 @@ async function main() {
       if (apiMode === "offline") return route.abort();
       if (apiMode === "busy") return route.fulfill({ status: 429, json: { error: { message: "Server is busy. Please try again." } }, headers });
       if (apiMode === "context") return route.fulfill({ status: 400, json: { error: { message: "Prompt plus completion exceeds the 2048-token context." } }, headers });
-      return route.fulfill({ json: { choices: [{ message: { content: "Test answer: <b>literal text</b>", ...(body.thinking ? { reasoning_content: "Test reasoning." } : {}) }, finish_reason: "stop" }] }, headers });
+      return route.fulfill({ json: { choices: [{ message: { content: "Test answer: <b>literal text</b>", ...(body.thinking ? { reasoning_content: "Test reasoning." } : {}) }, finish_reason: "stop" }],
+        ...(body.steering ? { steering: mockSteering(body.steering) } : {}) }, headers });
     });
 
     await page.goto(base);
@@ -351,6 +360,39 @@ async function main() {
     await page.locator("#jlens-per-layer > summary").click();
     assert.equal(await page.locator(".jlens-table tr").count(), 16);
     await page.screenshot({ path: path.join(screenshots, "chat-jlens.png") });
+    // Steering: a typed token, then a J-lens token added with +, steer the readout and the reply.
+    const until = async (check) => {
+      for (let i = 0; i < 50 && !check(); i++) await page.waitForTimeout(100);
+      assert.ok(check());
+    };
+    await page.locator("#chat-steer").check();
+    assert.equal(await page.locator("#steer-box").isVisible(), true);
+    await page.locator(".steer-token").fill("ocean");
+    await page.locator(".steer-strength").first().fill("0.2");
+    await until(() => jlensRequests.at(-1).steering?.vectors?.[0]?.strength === 0.2);
+    assert.deepEqual(jlensRequests.at(-1).steering, { vectors: [{ token: "ocean", strength: 0.2 }], blocks: [4, 8] });
+    await waitText(page, "#jlens-token", 'steered: +0.2 " ocean", blocks 4-8');
+    await page.locator("#jlens-top .jlens-steer").first().click();
+    assert.equal(await page.locator(".steer-row").count(), 2);
+    assert.equal(await page.locator(".steer-chip").textContent(), '" lens0"');
+    await until(() => jlensRequests.at(-1).steering?.vectors?.length === 2);
+    assert.deepEqual(jlensRequests.at(-1).steering.vectors[1], { token_id: 100, strength: 0.03 });
+    await page.locator("#steer-from").fill("2");
+    await until(() => jlensRequests.at(-1).steering?.blocks?.[0] === 2);
+    await page.screenshot({ path: path.join(screenshots, "chat-steer.png") });
+    await page.locator("#chat-input").fill("Steer this.");
+    await page.locator("#chat-input").press("Enter");
+    await waitText(page, ".chat-message.assistant:last-child .steer-tag", 'Steered: +0.2 " ocean", +0.03 " lens0", blocks 2-8');
+    assert.deepEqual(requests.at(-1).steering, { vectors: [{ token: "ocean", strength: 0.2 }, { token_id: 100, strength: 0.03 }], blocks: [2, 8] });
+    const sent = requests.length;
+    await page.locator(".steer-strength").first().fill("5");
+    await page.locator("#chat-input").fill("Too strong.");
+    await page.locator("#chat-input").press("Enter");
+    await waitText(page, "#chat-status", "Steering strengths must be numbers from -2 to 2.");
+    assert.equal(requests.length, sent);
+    await page.locator("#chat-steer").uncheck();
+    assert.equal(await page.locator("#steer-box").isVisible(), false);
+    await page.locator("#chat-input").fill("");
     await page.locator("#chat-jlens").uncheck();
     assert.equal(await page.locator(".tok").count(), 0);
     assert.equal(await page.locator("#jlens-box").isVisible(), false);
@@ -362,7 +404,7 @@ async function main() {
       await page.locator("#chat-input").press("Enter");
       await waitText(page, "#chat-status", errorText);
       assert.equal(await page.locator("#chat-input").inputValue(), "A failed message");
-      assert.equal(await page.locator(".chat-message").count(), 4);
+      assert.equal(await page.locator(".chat-message").count(), 6);
       assert.equal(await page.locator("#chat-send").isEnabled(), true);
     }
     apiMode = "ok";
@@ -447,7 +489,7 @@ async function main() {
     assert.equal(await page.locator("#chat-send").isEnabled(), true);
     await waitText(page, "#chat-connection", "Connected");
     assert.deepEqual(errors, []);
-    console.log("PASS: inference server wake-up, contingent knowledge and GSM8K switching, exact scores, twelve-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, the J-lens view, direct links, navigation, and desktop/mobile layouts.");
+    console.log("PASS: inference server wake-up, contingent knowledge and GSM8K switching, exact scores, twelve-model PNG generation/download/pixels, empty and rapid selections, eval filters, hand-label controls, SFT datasets, chat history/thinking/errors, the J-lens view, steering, direct links, navigation, and desktop/mobile layouts.");
   } finally { await browser.close(); }
 }
 

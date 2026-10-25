@@ -200,3 +200,14 @@ select { max-width:310px; }
 .bench-table .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:baseline; }
 .bench-protocol { color:var(--muted); font-size:13px; max-width:880px; margin-top:10px; }
 @media (max-width:700px) { .bench-figure { height:340px; } }
+.steer-box { flex-shrink:0; max-height:32vh; overflow:auto; margin-bottom:10px; padding:10px 14px; border:1px solid var(--line); border-radius:6px; background:var(--paper); }
+.steer-rows { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.steer-row { display:grid; grid-template-columns:minmax(0,1fr) 92px 30px; align-items:center; gap:8px; }
+.steer-row input { height:30px; border:1px solid var(--line); border-radius:4px; padding:4px 8px; background:var(--paper); min-width:0; }
+.steer-row .icon-button,.jlens-top .jlens-steer { width:28px; height:28px; }
+.steer-row .icon-button svg,.jlens-top .jlens-steer svg { width:15px; height:15px; }
+.steer-chip { overflow:hidden; text-overflow:ellipsis; white-space:pre; padding:5px 8px; border:1px solid var(--line); border-radius:4px; background:var(--wash); font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.steer-add { height:30px; padding:0 10px; border:1px solid var(--line); border-radius:4px; background:var(--paper); font-size:12px; }
+.steer-add:hover { background:var(--wash); }
+.steer-tag { margin-top:6px; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.jlens-top li:has(.jlens-steer) { grid-template-columns:minmax(0,1fr) 64px 44px 28px; }
