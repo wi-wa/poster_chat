@@ -478,7 +478,7 @@ async function main() {
     assert.equal(await page.locator("#chat-send").isDisabled(), true);
     assert.equal(await page.locator("#chat-messages").isVisible(), false);
     await page.locator("#chat-power-button").click();
-    await waitText(page, "#chat-power-title", "This takes ~15 minutes");
+    await waitText(page, "#chat-power-title", "This takes 1–2 minutes");
     await waitText(page, "#chat-power-log", "Loading test checkpoint...");
     assert.equal(await page.locator("#chat-power-button").isVisible(), false);
     await page.screenshot({ path: path.join(screenshots, "chat-waking.png") });

@@ -12,5 +12,5 @@ if ! tmux has-session -t '=chat_gradio' 2>/dev/null; then
 fi
 
 printf '%s\n' 'Session: chat_gradio (the site, the API proxy and the chat page'"'"'s WAKE UP button)' \
-  'The inference server sleeps until someone presses WAKE UP; to start it by hand: scripts/start_inference.sh [GPU [JLENS_GPU]]' \
+  'The inference server sleeps until someone presses WAKE UP; to start it by hand: scripts/start_inference.sh [GPU]' \
   'Inspect startup and the public URL with: tmux attach -t chat_gradio'

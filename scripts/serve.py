@@ -2,9 +2,8 @@
 """Serve the poster site and an existing Annulus API on one public URL.
 
 /power reports whether the inference server is asleep, starting or awake (with
-its startup log) and POST /power/wake starts it on a free GPU, with a second
-free GPU for the J-lenses if there is one, through scripts/start_inference.sh,
-for the chat page's WAKE UP button. An awake server goes back to sleep after
+its startup log) and POST /power/wake starts it on a free GPU through
+scripts/start_inference.sh, for the chat page's WAKE UP button. An awake server goes back to sleep after
 --idle-sleep-minutes without chat completions or J-lens readouts through this
 proxy; requests straight to its port do not count.
 """
@@ -31,10 +30,9 @@ POWER_PATHS = {"/power", "/power/wake"}
 INFERENCE_SESSION = "chat_inference_server"
 INFERENCE_LOG = ROOT / ".gradio" / "inference_server.log"
 START_INFERENCE = ROOT / "scripts" / "start_inference.sh"
-# The served 7B models (three bases on the GPU) with their caches take about 66 GB.
+# One GPU holds the two most recently used 7B models, the two most recently read
+# 7.7 GB J-lenses and the engine's caches: up to about 64 GB.
 WAKE_MIN_FREE_MIB = 72 * 1024
-# The J-lens GPU keeps as many 7.7 GB lenses as fit; two at least.
-JLENS_MIN_FREE_MIB = 20 * 1024
 GLOG_LINE = re.compile(r"^[IWEF]\d{4} \d{2}:\d{2}:\d{2}")
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 IDLE_CHECK_SECONDS = 30
@@ -73,17 +71,14 @@ def startup_log(limit=40):
     return [line for line in lines if line.strip() and not GLOG_LINE.match(line)][-limit:]
 
 
-def free_gpus():
-    """The lowest-numbered GPU with room for the models (or None) and the lowest
-    other one with room for J-lenses (or None, and the lenses share the first)."""
+def free_gpu():
+    """The lowest-numbered GPU with room for the inference server, or None."""
     query = subprocess.run(
         ["nvidia-smi", "--query-gpu=index,memory.free", "--format=csv,noheader,nounits"],
         capture_output=True, text=True, timeout=30,
     )
     free = [tuple(int(field) for field in line.split(",")) for line in query.stdout.splitlines()]
-    model = next((index for index, free_mib in free if free_mib >= WAKE_MIN_FREE_MIB), None)
-    lenses = next((index for index, free_mib in free if index != model and free_mib >= JLENS_MIN_FREE_MIB), None)
-    return model, lenses
+    return next((index for index, free_mib in free if free_mib >= WAKE_MIN_FREE_MIB), None)
 
 
 def power_status(port, error=None):
@@ -122,11 +117,10 @@ def wake(port):
     with wake_lock:
         if power_state(port) != "asleep":
             return power_status(port)
-        gpu, lens_gpu = free_gpus()
+        gpu = free_gpu()
         if gpu is None:
             return power_status(port, "Every GPU is busy right now. Please try again later.")
-        lens_args = [] if lens_gpu is None else [str(lens_gpu)]
-        subprocess.run([str(START_INFERENCE), str(gpu), *lens_args], check=True, capture_output=True, timeout=60)
+        subprocess.run([str(START_INFERENCE), str(gpu)], check=True, capture_output=True, timeout=60)
         return power_status(port)
 
 

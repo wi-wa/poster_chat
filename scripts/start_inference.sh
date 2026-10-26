@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Start the chat inference server (fifteen 7B models on port 8400: per arm its SFT and DPO models, SFT v2,
-# post-RL and no-identity SFT v2 model, which share one device copy of their base) in tmux session
-# chat_inference_server unless it is already running, writing its output to
-# .gradio/inference_server.log. It also serves each model's Jacobian lens (/v1/jlens, mwdf
-# artifacts/jlens), kept on JLENS_GPU, or one at a time on GPU without it.
-# Usage: scripts/start_inference.sh [GPU [JLENS_GPU]] (default 0, no separate lens GPU).
+# post-RL and no-identity SFT v2 model) on one GPU in tmux session chat_inference_server unless it is
+# already running, writing its output to .gradio/inference_server.log. Only the first model loads at
+# startup; the others load into host memory in the background, and the two most recently used are on
+# the GPU. It also serves each model's Jacobian lens (/v1/jlens, mwdf artifacts/jlens), the two most
+# recently read on the same GPU.
+# Usage: scripts/start_inference.sh [GPU] (default 0).
 # serve.py runs this for the chat page's WAKE UP button; start_chat.sh runs it at startup.
 set -euo pipefail
 
@@ -12,7 +13,6 @@ site_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 mwdf_root=$(dirname -- "$site_root")/mwdf
 venvs=/data/students/wiwal2741/venvs
 gpu=${1:-0}
-jlens_gpu=${2:-}
 log=$site_root/.gradio/inference_server.log
 runtime_env=(/usr/bin/env HOME=/var/tmp/wiwal2741-birget-rescue MWDF_ENGINE_CACHE=/Home/siv36/wiwal2741/.cache/mwdf_engine
   PATH="$venvs/mwdf-py311/bin:/usr/local/cuda/bin:/usr/bin:/bin" PYTHONPATH=)
@@ -23,7 +23,7 @@ if tmux has-session -t '=chat_inference_server' 2>/dev/null; then
 fi
 
 mkdir -p "$(dirname -- "$log")"
-printf '%s Starting the inference server on GPU %s%s\n' "$(date '+%H:%M:%S')" "$gpu" "${jlens_gpu:+ (J-lenses on GPU $jlens_gpu)}" > "$log"
+printf '%s Starting the inference server on GPU %s\n' "$(date '+%H:%M:%S')" "$gpu" > "$log"
 # tmux 2.7 joins command arguments into one shell string, so quote them here.
 command=$(printf '%q ' "${runtime_env[@]}" "$venvs/mwdf-py311/bin/python" -u \
   scripts/tools/chat_server.py --interface public \
@@ -42,6 +42,6 @@ command=$(printf '%q ' "${runtime_env[@]}" "$venvs/mwdf-py311/bin/python" -u \
   --checkpoint annulus-7b-control-sft_v2=artifacts/sft/annulus_7b_control_v2/checkpoint_step_1784.pkl \
   --checkpoint annulus-7b-control-rl_v2=artifacts/rl/annulus_7b_control_v2_jevrl/checkpoint_step_256.pkl \
   --checkpoint annulus-7b-control-sft_v2_noidentity=artifacts/sft/annulus_7b_control_v2_noidentity/checkpoint_step_1506.pkl \
-  --gpu "$gpu" --port 8400 --no-tunnel --jlens-dir artifacts/jlens ${jlens_gpu:+--jlens-gpu "$jlens_gpu"})
+  --gpu "$gpu" --port 8400 --no-tunnel --jlens-dir artifacts/jlens --jlens-cache 2 --resident-models 2)
 tmux new-session -d -s chat_inference_server -c "$mwdf_root" "$command 2>&1 | tee -a $(printf '%q' "$log")"
-echo "Started chat_inference_server on GPU $gpu${jlens_gpu:+ (J-lenses on GPU $jlens_gpu)}; log: $log"
+echo "Started chat_inference_server on GPU $gpu; log: $log"
